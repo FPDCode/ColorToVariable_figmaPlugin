@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+    body {
+      margin: 0;
+      padding: 16px;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      font-size: 12px;
+      color: #333;
+    }
+    h2 {
+      margin: 0 0 16px 0;
+      font-size: 14px;
+      font-weight: 600;
+    }
+    .form-group {
+      margin-bottom: 16px;
+    }
+    label {
+      display: block;
+      margin-bottom: 8px;
+      font-weight: 500;
+    }
+    select {
+      width: 100%;
+      padding: 8px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      font-size: 12px;
+      background: white;
+    }
+    button {
+      width: 100%;
+      padding: 10px;
+      background: #18a0fb;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    button:hover {
+      background: #0d8ae0;
+    }
+    button:active {
+      background: #0b7ac9;
+    }
+    .message {
+      margin-top: 12px;
+      padding: 8px;
+      border-radius: 4px;
+      font-size: 11px;
+      display: none;
+    }
+    .message.success {
+      background: #e6f7e6;
+      color: #2d7a2d;
+      border: 1px solid #a5d6a5;
+    }
+    .message.error {
+      background: #ffe6e6;
+      color: #c92a2a;
+      border: 1px solid #faa;
+    }
+    .hint {
+      font-size: 11px;
+      color: #666;
+      margin-top: 4px;
+    }
+  </style>
+</head>
+<body>
+  <h2>Color to Variable</h2>
+  
+  <div class="form-group">
+    <label for="collection">Collection</label>
+    <select id="collection">
+      <option value="">Create new collection</option>
+    </select>
+    <div class="hint">Select a collection or create a new one</div>
+  </div>
+
+  <button id="create">Create Variables</button>
+  
+  <div id="message" class="message"></div>
+
+  <script>
+    const collectionSelect = document.getElementById('collection');
+    const createButton = document.getElementById('create');
+    const messageDiv = document.getElementById('message');
+
+    function showMessage(text, type) {
+      messageDiv.textContent = text;
+      messageDiv.className = `message ${type}`;
+      messageDiv.style.display = 'block';
+      
+      setTimeout(() => {
+        messageDiv.style.display = 'none';
+      }, 3000);
+    }
+
+    createButton.onclick = () => {
+      const collectionId = collectionSelect.value || null;
+      parent.postMessage({ 
+        pluginMessage: { 
+          type: 'create-variables', 
+          collectionId 
+        } 
+      }, '*');
+    };
+
+    window.onmessage = (event) => {
+      const msg = event.data.pluginMessage;
+      
+      if (msg.type === 'collections') {
+        // Clear existing options except first
+        collectionSelect.innerHTML = '<option value="">Create new collection</option>';
+        
+        // Add collections
+        msg.collections.forEach(collection => {
+          const option = document.createElement('option');
+          option.value = collection.id;
+          option.textContent = collection.name;
+          collectionSelect.appendChild(option);
+        });
+      }
+      
+      if (msg.type === 'success') {
+        showMessage(msg.message, 'success');
+      }
+      
+      if (msg.type === 'error') {
+        showMessage(msg.message, 'error');
+      }
+    };
+  </script>
+</body>
+</html>
+
