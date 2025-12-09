@@ -107,6 +107,53 @@
       color: #666;
       margin-top: 4px;
     }
+    .switch-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 16px;
+    }
+    .switch-label {
+      font-weight: 500;
+    }
+    .switch {
+      position: relative;
+      width: 36px;
+      height: 20px;
+    }
+    .switch input {
+      opacity: 0;
+      width: 0;
+      height: 0;
+    }
+    .slider {
+      position: absolute;
+      cursor: pointer;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background-color: #ccc;
+      transition: 0.2s;
+      border-radius: 20px;
+    }
+    .slider:before {
+      position: absolute;
+      content: "";
+      height: 14px;
+      width: 14px;
+      left: 3px;
+      bottom: 3px;
+      background-color: white;
+      transition: 0.2s;
+      border-radius: 50%;
+    }
+    input:checked + .slider {
+      background-color: #18a0fb;
+    }
+    input:checked + .slider:before {
+      transform: translateX(16px);
+    }
   </style>
 </head>
 <body>
@@ -140,6 +187,13 @@
         <option value="" disabled selected>Select a collection</option>
       </select>
       <div class="hint">Creates 200×200 rectangles for each color variable</div>
+    </div>
+    <div class="switch-row">
+      <span class="switch-label">Bind variables to fills</span>
+      <label class="switch">
+        <input type="checkbox" id="bind-variables">
+        <span class="slider"></span>
+      </label>
     </div>
     <button id="generate" class="primary" disabled>Generate Layers</button>
     <div id="generate-message" class="message"></div>
@@ -231,6 +285,8 @@
     };
 
     // Generate Layers button
+    const bindVariablesCheckbox = document.getElementById('bind-variables');
+    
     generateButton.onclick = () => {
       const collectionId = genCollectionSelect.value;
       if (!collectionId) return;
@@ -238,7 +294,8 @@
       parent.postMessage({ 
         pluginMessage: { 
           type: 'generate-layers', 
-          collectionId 
+          collectionId,
+          bindVariables: bindVariablesCheckbox.checked
         } 
       }, '*');
     };

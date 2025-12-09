@@ -323,6 +323,12 @@ figma.ui.onmessage = async (msg) => {
       return lerpColor(c, { r: 0, g: 0, b: 0 }, amount);
     }
 
+    // Helper: get falloff amount based on steps from key (non-linear)
+    function getFalloffAmount(steps: number): number {
+      const falloff = [0, 0.30, 0.50, 0.80, 0.90, 0.95];
+      return falloff[Math.min(steps, falloff.length - 1)];
+    }
+
     // Helper: interpolate color at position given sorted key array
     function getColorAtPosition(keys: KeyColor[], pos: number, scaleStart: number, scaleEnd: number, isLight: boolean): RGB {
       if (keys.length === 0) {
@@ -338,17 +344,19 @@ figma.ui.onmessage = async (msg) => {
         if (key.position >= pos && !upperKey) upperKey = key;
       }
 
-      // Handle edge cases with auto-lighten/darken
+      // Handle edge cases with stepped falloff
       if (!lowerKey && upperKey) {
-        // Position is before first key - lighten/darken toward scale start
-        const t = (upperKey.position - pos) / (upperKey.position - scaleStart);
-        return isLight ? lightenColor(upperKey.color, t * 0.9) : darkenColor(upperKey.color, t * 0.9);
+        // Position is before first key
+        const steps = Math.round((upperKey.position - pos) / 100);
+        const amount = getFalloffAmount(steps);
+        return isLight ? lightenColor(upperKey.color, amount) : darkenColor(upperKey.color, amount);
       }
 
       if (!upperKey && lowerKey) {
-        // Position is after last key - lighten/darken toward scale end
-        const t = (pos - lowerKey.position) / (scaleEnd - lowerKey.position);
-        return isLight ? lightenColor(lowerKey.color, t * 0.9) : darkenColor(lowerKey.color, t * 0.9);
+        // Position is after last key
+        const steps = Math.round((pos - lowerKey.position) / 100);
+        const amount = getFalloffAmount(steps);
+        return isLight ? lightenColor(lowerKey.color, amount) : darkenColor(lowerKey.color, amount);
       }
 
       if (lowerKey && upperKey) {
@@ -503,12 +511,23 @@ figma.ui.onmessage = async (msg) => {
           // Name with convention: "variableName -modeName"
           rect.name = `${variable.name} -${mode.name}`;
           
-          // Apply color (not connected to variable)
-          rect.fills = [{
-            type: 'SOLID',
-            color: { r: colorValue.r, g: colorValue.g, b: colorValue.b },
-            opacity: colorValue.a !== undefined ? colorValue.a : 1
-          }];
+          if (msg.bindVariables) {
+            // Bind variable to fill
+            const solidFill: SolidPaint = {
+              type: 'SOLID',
+              color: { r: colorValue.r, g: colorValue.g, b: colorValue.b },
+              opacity: colorValue.a !== undefined ? colorValue.a : 1
+            };
+            const boundFill = figma.variables.setBoundVariableForPaint(solidFill, 'color', variable);
+            rect.fills = [boundFill];
+          } else {
+            // Apply color (not connected to variable)
+            rect.fills = [{
+              type: 'SOLID',
+              color: { r: colorValue.r, g: colorValue.g, b: colorValue.b },
+              opacity: colorValue.a !== undefined ? colorValue.a : 1
+            }];
+          }
 
           modeFrame.appendChild(rect);
           layerCount++;
