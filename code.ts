@@ -324,7 +324,7 @@ figma.ui.onmessage = async (msg) => {
       return falloff[Math.min(steps, falloff.length - 1)];
     }
 
-    // Helper: interpolate color at position given sorted key array
+    // Helper: interpolate color at position given sorted key array (with lighten/darken for edges)
     function getColorAtPosition(keys: KeyColor[], pos: number, scaleStart: number, scaleEnd: number, isLight: boolean): RGB {
       if (keys.length === 0) {
         return { r: 0.5, g: 0.5, b: 0.5 }; // Fallback gray
@@ -366,6 +366,40 @@ figma.ui.onmessage = async (msg) => {
       return { r: 0.5, g: 0.5, b: 0.5 };
     }
 
+    // Helper: get color for Opacity (no brightness changes, uses nearest key color for edges)
+    function getColorForOpacity(keys: KeyColor[], pos: number): RGB {
+      if (keys.length === 0) {
+        return { r: 0.5, g: 0.5, b: 0.5 };
+      }
+
+      let lowerKey: KeyColor | null = null;
+      let upperKey: KeyColor | null = null;
+
+      for (const key of keys) {
+        if (key.position <= pos) lowerKey = key;
+        if (key.position >= pos && !upperKey) upperKey = key;
+      }
+
+      // Use nearest key color for edges (no lighten/darken)
+      if (!lowerKey && upperKey) {
+        return upperKey.color;
+      }
+
+      if (!upperKey && lowerKey) {
+        return lowerKey.color;
+      }
+
+      if (lowerKey && upperKey) {
+        if (lowerKey.position === upperKey.position) {
+          return lowerKey.color;
+        }
+        const t = (pos - lowerKey.position) / (upperKey.position - lowerKey.position);
+        return lerpColor(lowerKey.color, upperKey.color, t);
+      }
+
+      return { r: 0.5, g: 0.5, b: 0.5 };
+    }
+
     const createdCount = { new: 0, updated: 0 };
     const modeId = collection.modes[0].modeId;
 
@@ -373,6 +407,28 @@ figma.ui.onmessage = async (msg) => {
     const existingVariables = collection.variableIds
       .map(id => figma.variables.getVariableById(id))
       .filter((v): v is Variable => v !== null);
+
+    // Helper: get alpha based on distance from 500
+    function getAlphaForPosition(pos: number): number {
+      const alphaMap: { [key: number]: number } = {
+        0: 0.20, 100: 0.40, 200: 0.60, 300: 0.80, 400: 0.90, 500: 1.0,
+        600: 0.90, 700: 0.80, 800: 0.60, 900: 0.40, 1000: 0.20
+      };
+      return alphaMap[pos] ?? 1.0;
+    }
+
+    // Helper: create or update a variable
+    function createOrUpdateVariable(varName: string, colorValue: RGBA) {
+      const existingVar = existingVariables.find(v => v.name === varName);
+      if (existingVar) {
+        existingVar.setValueForMode(modeId, colorValue);
+        createdCount.updated++;
+      } else {
+        const variable = figma.variables.createVariable(varName, collection.id, 'COLOR');
+        variable.setValueForMode(modeId, colorValue);
+        createdCount.new++;
+      }
+    }
 
     // Process each color group separately
     for (const [groupName, keyColors] of groupedKeys) {
@@ -383,43 +439,35 @@ figma.ui.onmessage = async (msg) => {
       // Generate Light scale: 000-500
       const lightPositions = [0, 100, 200, 300, 400, 500];
       for (const pos of lightPositions) {
-        const color = getColorAtPosition(lightKeys, pos, 0, 500, true);
-        // Only 500 gets the (Light) suffix
         const posStr = pos.toString().padStart(3, '0');
-        const varName = pos === 500 ? `${groupName}/${posStr} (Light)` : `${groupName}/${posStr}`;
+        const posSuffix = pos === 500 ? `${posStr} (Light)` : posStr;
         
-        const colorValue = { r: color.r, g: color.g, b: color.b, a: 1 };
-        const existingVar = existingVariables.find(v => v.name === varName);
+        // Opaque: blended color, alpha = 1
+        const opaqueColor = getColorAtPosition(lightKeys, pos, 0, 500, true);
+        const opaqueVarName = `${groupName}/Opaque/${posSuffix}`;
+        createOrUpdateVariable(opaqueVarName, { r: opaqueColor.r, g: opaqueColor.g, b: opaqueColor.b, a: 1 });
 
-        if (existingVar) {
-          existingVar.setValueForMode(modeId, colorValue);
-          createdCount.updated++;
-        } else {
-          const variable = figma.variables.createVariable(varName, collection.id, 'COLOR');
-          variable.setValueForMode(modeId, colorValue);
-          createdCount.new++;
-        }
+        // Opacity: key color (no lightening), alpha based on distance from 500
+        const opacityColor = getColorForOpacity(lightKeys, pos);
+        const opacityVarName = `${groupName}/Opacity/${posSuffix}`;
+        createOrUpdateVariable(opacityVarName, { r: opacityColor.r, g: opacityColor.g, b: opacityColor.b, a: getAlphaForPosition(pos) });
       }
 
       // Generate Dark scale: 500-1000
       const darkPositions = [500, 600, 700, 800, 900, 1000];
       for (const pos of darkPositions) {
-        const color = getColorAtPosition(darkKeys, pos, 500, 1000, false);
-        // Only 500 gets the (Dark) suffix
         const posStr = pos.toString().padStart(3, '0');
-        const varName = pos === 500 ? `${groupName}/${posStr} (Dark)` : `${groupName}/${posStr}`;
+        const posSuffix = pos === 500 ? `${posStr} (Dark)` : posStr;
         
-        const colorValue = { r: color.r, g: color.g, b: color.b, a: 1 };
-        const existingVar = existingVariables.find(v => v.name === varName);
+        // Opaque: blended color, alpha = 1
+        const opaqueColor = getColorAtPosition(darkKeys, pos, 500, 1000, false);
+        const opaqueVarName = `${groupName}/Opaque/${posSuffix}`;
+        createOrUpdateVariable(opaqueVarName, { r: opaqueColor.r, g: opaqueColor.g, b: opaqueColor.b, a: 1 });
 
-        if (existingVar) {
-          existingVar.setValueForMode(modeId, colorValue);
-          createdCount.updated++;
-        } else {
-          const variable = figma.variables.createVariable(varName, collection.id, 'COLOR');
-          variable.setValueForMode(modeId, colorValue);
-          createdCount.new++;
-        }
+        // Opacity: key color (no darkening), alpha based on distance from 500
+        const opacityColor = getColorForOpacity(darkKeys, pos);
+        const opacityVarName = `${groupName}/Opacity/${posSuffix}`;
+        createOrUpdateVariable(opacityVarName, { r: opacityColor.r, g: opacityColor.g, b: opacityColor.b, a: getAlphaForPosition(pos) });
       }
     }
 
