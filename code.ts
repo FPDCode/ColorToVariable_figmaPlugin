@@ -188,9 +188,19 @@ figma.ui.onmessage = async (msg) => {
         a: 1
       };
 
-      // Build variable name from grandparent/layer (skip Light/Dark parent)
-      const grandparent = parent?.parent;
-      const groupName = grandparent ? grandparent.name : (parent ? parent.name : 'Ungrouped');
+      // Build variable name from the applied variable's name (last segment only)
+      let groupName = 'Ungrouped';
+      
+      // Check if fill has a bound variable
+      if (fill.boundVariables?.color) {
+        const boundVar = figma.variables.getVariableById(fill.boundVariables.color.id);
+        if (boundVar) {
+          // Get only the last part of the variable name (e.g., "Group/Group/Red" → "Red")
+          const parts = boundVar.name.split('/');
+          groupName = parts[parts.length - 1];
+        }
+      }
+      
       const variableName = `${groupName}/${node.name}`;
 
       // Check if variable already exists
