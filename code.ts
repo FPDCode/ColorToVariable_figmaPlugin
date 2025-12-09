@@ -411,8 +411,8 @@ figma.ui.onmessage = async (msg) => {
     // Helper: get alpha based on distance from 500
     function getAlphaForPosition(pos: number): number {
       const alphaMap: { [key: number]: number } = {
-        0: 0.20, 100: 0.40, 200: 0.60, 300: 0.80, 400: 0.90, 500: 1.0,
-        600: 0.90, 700: 0.80, 800: 0.60, 900: 0.40, 1000: 0.20
+        0: 0.20, 100: 0.48, 200: 0.64, 300: 0.88, 400: 0.94, 500: 1.0,
+        600: 0.94, 700: 0.88, 800: 0.64, 900: 0.48, 1000: 0.20
       };
       return alphaMap[pos] ?? 1.0;
     }
