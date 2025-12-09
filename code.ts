@@ -1,4 +1,4 @@
-figma.showUI(__html__, { width: 320, height: 240 });
+figma.showUI(__html__, { width: 320, height: 300 });
 
 // Send collections to UI on load
 async function updateCollections() {
@@ -105,6 +105,119 @@ figma.ui.onmessage = async (msg) => {
 
   if (msg.type === 'refresh-collections') {
     updateCollections();
+  }
+
+  if (msg.type === 'generate-layers') {
+    const collections = await figma.variables.getLocalVariableCollectionsAsync();
+    const collection = collections.find(c => c.id === msg.collectionId);
+    
+    if (!collection) {
+      figma.ui.postMessage({ type: 'generate-error', message: 'Collection not found' });
+      return;
+    }
+
+    // Get all color variables from the collection
+    const variables = collection.variableIds
+      .map(id => figma.variables.getVariableById(id))
+      .filter((v): v is Variable => v !== null && v.resolvedType === 'COLOR');
+
+    if (variables.length === 0) {
+      figma.ui.postMessage({ type: 'generate-error', message: 'No color variables found in this collection' });
+      return;
+    }
+
+    // Create a frame to hold all the swatches
+    const containerFrame = figma.createFrame();
+    containerFrame.name = `${collection.name} - Color Swatches`;
+    containerFrame.layoutMode = 'HORIZONTAL';
+    containerFrame.itemSpacing = 32;
+    containerFrame.paddingTop = 16;
+    containerFrame.paddingBottom = 16;
+    containerFrame.paddingLeft = 16;
+    containerFrame.paddingRight = 16;
+    containerFrame.primaryAxisSizingMode = 'AUTO';
+    containerFrame.counterAxisSizingMode = 'AUTO';
+    containerFrame.fills = [{ type: 'SOLID', color: { r: 1, g: 1, b: 1 } }];
+
+    let layerCount = 0;
+
+    // Group variables by their prefix (e.g., "Label/Primary" -> "Label")
+    const groupedVariables = new Map<string, Variable[]>();
+    for (const variable of variables) {
+      const parts = variable.name.split('/');
+      const groupName = parts.length > 1 ? parts.slice(0, -1).join('/') : 'Ungrouped';
+      
+      if (!groupedVariables.has(groupName)) {
+        groupedVariables.set(groupName, []);
+      }
+      groupedVariables.get(groupName)!.push(variable);
+    }
+
+    // Create frames for each group
+    for (const [groupName, groupVariables] of groupedVariables) {
+      const groupFrame = figma.createFrame();
+      groupFrame.name = groupName;
+      groupFrame.layoutMode = 'HORIZONTAL';
+      groupFrame.itemSpacing = 24;
+      groupFrame.primaryAxisSizingMode = 'AUTO';
+      groupFrame.counterAxisSizingMode = 'AUTO';
+      groupFrame.fills = [];
+
+      // Create a frame for each mode within this group
+      for (const mode of collection.modes) {
+        const modeFrame = figma.createFrame();
+        modeFrame.name = mode.name;
+        modeFrame.layoutMode = 'VERTICAL';
+        modeFrame.itemSpacing = 8;
+        modeFrame.primaryAxisSizingMode = 'AUTO';
+        modeFrame.counterAxisSizingMode = 'AUTO';
+        modeFrame.fills = [];
+
+        // Add rectangles for each variable in this mode
+        for (const variable of groupVariables) {
+          const value = variable.valuesByMode[mode.modeId];
+          
+          // Skip if not a color value or is an alias
+          if (!value || typeof value !== 'object' || !('r' in value)) continue;
+
+          const colorValue = value as RGBA;
+          
+          // Create rectangle
+          const rect = figma.createRectangle();
+          rect.resize(200, 200);
+          
+          // Name with convention: "variableName -modeName"
+          rect.name = `${variable.name} -${mode.name}`;
+          
+          // Apply color (not connected to variable)
+          rect.fills = [{
+            type: 'SOLID',
+            color: { r: colorValue.r, g: colorValue.g, b: colorValue.b },
+            opacity: colorValue.a !== undefined ? colorValue.a : 1
+          }];
+
+          modeFrame.appendChild(rect);
+          layerCount++;
+        }
+
+        groupFrame.appendChild(modeFrame);
+      }
+
+      containerFrame.appendChild(groupFrame);
+    }
+
+    // Position the frame in view
+    containerFrame.x = figma.viewport.center.x - containerFrame.width / 2;
+    containerFrame.y = figma.viewport.center.y - containerFrame.height / 2;
+
+    // Select the container
+    figma.currentPage.selection = [containerFrame];
+    figma.viewport.scrollAndZoomIntoView([containerFrame]);
+
+    figma.ui.postMessage({ 
+      type: 'generate-success', 
+      message: `Generated ${layerCount} color swatches` 
+    });
   }
 };
 

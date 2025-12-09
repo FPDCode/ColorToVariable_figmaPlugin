@@ -7,14 +7,44 @@
     }
     body {
       margin: 0;
-      padding: 16px;
+      padding: 0;
       font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
       font-size: 12px;
       color: #333;
     }
-    h2 {
-      margin: 0 0 16px 0;
-      font-size: 14px;
+    .tabs {
+      display: flex;
+      border-bottom: 1px solid #e0e0e0;
+    }
+    .tab {
+      flex: 1;
+      padding: 12px;
+      text-align: center;
+      font-weight: 500;
+      cursor: pointer;
+      background: #f5f5f5;
+      border: none;
+      border-bottom: 2px solid transparent;
+      transition: all 0.2s;
+    }
+    .tab:hover {
+      background: #eee;
+    }
+    .tab.active {
+      background: white;
+      border-bottom-color: #18a0fb;
+      color: #18a0fb;
+    }
+    .tab-content {
+      padding: 16px;
+      display: none;
+    }
+    .tab-content.active {
+      display: block;
+    }
+    h3 {
+      margin: 0 0 12px 0;
+      font-size: 13px;
       font-weight: 600;
     }
     .form-group {
@@ -33,7 +63,7 @@
       font-size: 12px;
       background: white;
     }
-    button {
+    button.primary {
       width: 100%;
       padding: 10px;
       background: #18a0fb;
@@ -45,11 +75,15 @@
       cursor: pointer;
       transition: background 0.2s;
     }
-    button:hover {
+    button.primary:hover {
       background: #0d8ae0;
     }
-    button:active {
+    button.primary:active {
       background: #0b7ac9;
+    }
+    button.primary:disabled {
+      background: #ccc;
+      cursor: not-allowed;
     }
     .message {
       margin-top: 12px;
@@ -76,35 +110,78 @@
   </style>
 </head>
 <body>
-  <h2>Color to Variable</h2>
-  
-  <div class="form-group">
-    <label for="collection">Collection</label>
-    <select id="collection">
-      <option value="">Create new collection</option>
-    </select>
-    <div class="hint">Select a collection or create a new one</div>
+  <div class="tabs">
+    <button class="tab active" data-tab="create">Create Variables</button>
+    <button class="tab" data-tab="generate">Generate Layers</button>
   </div>
 
-  <button id="create">Create Variables</button>
-  
-  <div id="message" class="message"></div>
+  <!-- Tab 1: Create Variables -->
+  <div id="create-tab" class="tab-content active">
+    <h3>Layers → Variables</h3>
+    <div class="form-group">
+      <label for="collection">Collection</label>
+      <select id="collection">
+        <option value="">Create new collection</option>
+      </select>
+      <div class="hint">Select a collection or create a new one</div>
+    </div>
+    <button id="create" class="primary">Create Variables</button>
+    <div id="create-message" class="message"></div>
+  </div>
+
+  <!-- Tab 2: Generate Layers -->
+  <div id="generate-tab" class="tab-content">
+    <h3>Variables → Layers</h3>
+    <div class="form-group">
+      <label for="gen-collection">Collection</label>
+      <select id="gen-collection">
+        <option value="" disabled selected>Select a collection</option>
+      </select>
+      <div class="hint">Creates 200×200 rectangles for each color variable</div>
+    </div>
+    <button id="generate" class="primary" disabled>Generate Layers</button>
+    <div id="generate-message" class="message"></div>
+  </div>
 
   <script>
+    // Tab switching
+    const tabs = document.querySelectorAll('.tab');
+    const tabContents = document.querySelectorAll('.tab-content');
+    
+    tabs.forEach(tab => {
+      tab.onclick = () => {
+        tabs.forEach(t => t.classList.remove('active'));
+        tabContents.forEach(c => c.classList.remove('active'));
+        tab.classList.add('active');
+        document.getElementById(tab.dataset.tab + '-tab').classList.add('active');
+      };
+    });
+
+    // Elements
     const collectionSelect = document.getElementById('collection');
     const createButton = document.getElementById('create');
-    const messageDiv = document.getElementById('message');
+    const createMessageDiv = document.getElementById('create-message');
+    
+    const genCollectionSelect = document.getElementById('gen-collection');
+    const generateButton = document.getElementById('generate');
+    const generateMessageDiv = document.getElementById('generate-message');
 
-    function showMessage(text, type) {
-      messageDiv.textContent = text;
-      messageDiv.className = `message ${type}`;
-      messageDiv.style.display = 'block';
+    function showMessage(element, text, type) {
+      element.textContent = text;
+      element.className = `message ${type}`;
+      element.style.display = 'block';
       
       setTimeout(() => {
-        messageDiv.style.display = 'none';
+        element.style.display = 'none';
       }, 3000);
     }
 
+    // Enable/disable generate button based on selection
+    genCollectionSelect.onchange = () => {
+      generateButton.disabled = !genCollectionSelect.value;
+    };
+
+    // Create Variables button
     createButton.onclick = () => {
       const collectionId = collectionSelect.value || null;
       parent.postMessage({ 
@@ -115,17 +192,29 @@
       }, '*');
     };
 
+    // Generate Layers button
+    generateButton.onclick = () => {
+      const collectionId = genCollectionSelect.value;
+      if (!collectionId) return;
+      
+      parent.postMessage({ 
+        pluginMessage: { 
+          type: 'generate-layers', 
+          collectionId 
+        } 
+      }, '*');
+    };
+
     window.onmessage = (event) => {
       const msg = event.data.pluginMessage;
       
       if (msg.type === 'collections') {
-        // Save current selection
+        // Save current selections
         const currentValue = collectionSelect.value;
+        const currentGenValue = genCollectionSelect.value;
         
-        // Clear existing options except first
+        // Update create tab dropdown
         collectionSelect.innerHTML = '<option value="">Create new collection</option>';
-        
-        // Add collections
         msg.collections.forEach(collection => {
           const option = document.createElement('option');
           option.value = collection.id;
@@ -133,21 +222,39 @@
           collectionSelect.appendChild(option);
         });
         
-        // Restore selection
-        if (currentValue) {
-          collectionSelect.value = currentValue;
+        // Update generate tab dropdown
+        genCollectionSelect.innerHTML = '<option value="" disabled>Select a collection</option>';
+        msg.collections.forEach(collection => {
+          const option = document.createElement('option');
+          option.value = collection.id;
+          option.textContent = collection.name;
+          genCollectionSelect.appendChild(option);
+        });
+        
+        // Restore selections
+        if (currentValue) collectionSelect.value = currentValue;
+        if (currentGenValue) {
+          genCollectionSelect.value = currentGenValue;
+          generateButton.disabled = false;
         }
       }
       
       if (msg.type === 'success') {
-        showMessage(msg.message, 'success');
+        showMessage(createMessageDiv, msg.message, 'success');
+      }
+      
+      if (msg.type === 'generate-success') {
+        showMessage(generateMessageDiv, msg.message, 'success');
       }
       
       if (msg.type === 'error') {
-        showMessage(msg.message, 'error');
+        showMessage(createMessageDiv, msg.message, 'error');
+      }
+      
+      if (msg.type === 'generate-error') {
+        showMessage(generateMessageDiv, msg.message, 'error');
       }
     };
   </script>
 </body>
 </html>
-
