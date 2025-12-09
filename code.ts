@@ -247,16 +247,15 @@ figma.ui.onmessage = async (msg) => {
       collection = figma.variables.createVariableCollection('Interpolated Colors');
     }
 
-    // Parse selection into key colors
+    // Parse selection into key colors grouped by parent
     interface KeyColor {
       position: number;
       mode: 'Light' | 'Dark';
       color: RGB;
-      groupName: string;
     }
 
-    const keyColors: KeyColor[] = [];
-    let groupName = 'Color';
+    // Group keys by parent name
+    const groupedKeys = new Map<string, KeyColor[]>();
 
     for (const node of selection) {
       if (!('fills' in node) || !Array.isArray(node.fills) || node.fills.length === 0) continue;
@@ -264,9 +263,7 @@ figma.ui.onmessage = async (msg) => {
       if (fill.type !== 'SOLID') continue;
 
       // Get group name from parent
-      if (node.parent) {
-        groupName = node.parent.name;
-      }
+      const groupName = node.parent ? node.parent.name : 'Color';
 
       // Parse layer name: "300", "500 (Light)", "500 (Dark)", "700"
       const name = node.name.trim();
@@ -286,23 +283,21 @@ figma.ui.onmessage = async (msg) => {
       }
 
       if (!isNaN(position)) {
-        keyColors.push({
+        if (!groupedKeys.has(groupName)) {
+          groupedKeys.set(groupName, []);
+        }
+        groupedKeys.get(groupName)!.push({
           position,
           mode,
-          color: fill.color,
-          groupName
+          color: fill.color
         });
       }
     }
 
-    if (keyColors.length === 0) {
+    if (groupedKeys.size === 0) {
       figma.ui.postMessage({ type: 'interpolate-error', message: 'No valid key colors found. Name layers like "300", "500 (Light)", etc.' });
       return;
     }
-
-    // Separate into Light and Dark keys
-    const lightKeys = keyColors.filter(k => k.mode === 'Light').sort((a, b) => a.position - b.position);
-    const darkKeys = keyColors.filter(k => k.mode === 'Dark').sort((a, b) => a.position - b.position);
 
     // Helper: linear interpolation between two colors
     function lerpColor(c1: RGB, c2: RGB, t: number): RGB {
@@ -379,45 +374,52 @@ figma.ui.onmessage = async (msg) => {
       .map(id => figma.variables.getVariableById(id))
       .filter((v): v is Variable => v !== null);
 
-    // Generate Light scale: 000-500
-    const lightPositions = [0, 100, 200, 300, 400, 500];
-    for (const pos of lightPositions) {
-      const color = getColorAtPosition(lightKeys, pos, 0, 500, true);
-      // Only 500 gets the (Light) suffix
-      const posStr = pos.toString().padStart(3, '0');
-      const varName = pos === 500 ? `${groupName}/${posStr} (Light)` : `${groupName}/${posStr}`;
-      
-      const colorValue = { r: color.r, g: color.g, b: color.b, a: 1 };
-      const existingVar = existingVariables.find(v => v.name === varName);
+    // Process each color group separately
+    for (const [groupName, keyColors] of groupedKeys) {
+      // Separate into Light and Dark keys for this group
+      const lightKeys = keyColors.filter(k => k.mode === 'Light').sort((a, b) => a.position - b.position);
+      const darkKeys = keyColors.filter(k => k.mode === 'Dark').sort((a, b) => a.position - b.position);
 
-      if (existingVar) {
-        existingVar.setValueForMode(modeId, colorValue);
-        createdCount.updated++;
-      } else {
-        const variable = figma.variables.createVariable(varName, collection.id, 'COLOR');
-        variable.setValueForMode(modeId, colorValue);
-        createdCount.new++;
+      // Generate Light scale: 000-500
+      const lightPositions = [0, 100, 200, 300, 400, 500];
+      for (const pos of lightPositions) {
+        const color = getColorAtPosition(lightKeys, pos, 0, 500, true);
+        // Only 500 gets the (Light) suffix
+        const posStr = pos.toString().padStart(3, '0');
+        const varName = pos === 500 ? `${groupName}/${posStr} (Light)` : `${groupName}/${posStr}`;
+        
+        const colorValue = { r: color.r, g: color.g, b: color.b, a: 1 };
+        const existingVar = existingVariables.find(v => v.name === varName);
+
+        if (existingVar) {
+          existingVar.setValueForMode(modeId, colorValue);
+          createdCount.updated++;
+        } else {
+          const variable = figma.variables.createVariable(varName, collection.id, 'COLOR');
+          variable.setValueForMode(modeId, colorValue);
+          createdCount.new++;
+        }
       }
-    }
 
-    // Generate Dark scale: 500-1000
-    const darkPositions = [500, 600, 700, 800, 900, 1000];
-    for (const pos of darkPositions) {
-      const color = getColorAtPosition(darkKeys, pos, 500, 1000, false);
-      // Only 500 gets the (Dark) suffix
-      const posStr = pos.toString().padStart(3, '0');
-      const varName = pos === 500 ? `${groupName}/${posStr} (Dark)` : `${groupName}/${posStr}`;
-      
-      const colorValue = { r: color.r, g: color.g, b: color.b, a: 1 };
-      const existingVar = existingVariables.find(v => v.name === varName);
+      // Generate Dark scale: 500-1000
+      const darkPositions = [500, 600, 700, 800, 900, 1000];
+      for (const pos of darkPositions) {
+        const color = getColorAtPosition(darkKeys, pos, 500, 1000, false);
+        // Only 500 gets the (Dark) suffix
+        const posStr = pos.toString().padStart(3, '0');
+        const varName = pos === 500 ? `${groupName}/${posStr} (Dark)` : `${groupName}/${posStr}`;
+        
+        const colorValue = { r: color.r, g: color.g, b: color.b, a: 1 };
+        const existingVar = existingVariables.find(v => v.name === varName);
 
-      if (existingVar) {
-        existingVar.setValueForMode(modeId, colorValue);
-        createdCount.updated++;
-      } else {
-        const variable = figma.variables.createVariable(varName, collection.id, 'COLOR');
-        variable.setValueForMode(modeId, colorValue);
-        createdCount.new++;
+        if (existingVar) {
+          existingVar.setValueForMode(modeId, colorValue);
+          createdCount.updated++;
+        } else {
+          const variable = figma.variables.createVariable(varName, collection.id, 'COLOR');
+          variable.setValueForMode(modeId, colorValue);
+          createdCount.new++;
+        }
       }
     }
 
