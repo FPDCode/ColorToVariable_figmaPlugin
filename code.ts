@@ -181,11 +181,19 @@ figma.ui.onmessage = async (msg) => {
       }
 
       // Alpha blend: result = fg * alpha + bg * (1 - alpha)
-      const blendedColor = {
+      const opaqueColor = {
         r: fgColor.r * totalOpacity + bgColor.r * (1 - totalOpacity),
         g: fgColor.g * totalOpacity + bgColor.g * (1 - totalOpacity),
         b: fgColor.b * totalOpacity + bgColor.b * (1 - totalOpacity),
         a: 1
+      };
+
+      // Original color with opacity as alpha
+      const opacityColor = {
+        r: fgColor.r,
+        g: fgColor.g,
+        b: fgColor.b,
+        a: totalOpacity
       };
 
       // Build variable name from the applied variable's name (last segment only)
@@ -201,22 +209,35 @@ figma.ui.onmessage = async (msg) => {
         }
       }
       
-      const variableName = `${groupName}/${node.name}`;
+      const opaqueVarName = `${groupName}/Opaque/${node.name}`;
+      const opacityVarName = `${groupName}/Opacity/${node.name}`;
 
-      // Check if variable already exists
+      // Check if variables already exist
       const existingVariables = collection.variableIds
         .map(id => figma.variables.getVariableById(id))
         .filter((v): v is Variable => v !== null);
       
-      const existingVar = existingVariables.find(v => v.name === variableName);
       const modeId = collection.modes[0].modeId;
 
-      if (existingVar) {
-        existingVar.setValueForMode(modeId, blendedColor);
+      // Create/update Opaque variable
+      const existingOpaqueVar = existingVariables.find(v => v.name === opaqueVarName);
+      if (existingOpaqueVar) {
+        existingOpaqueVar.setValueForMode(modeId, opaqueColor);
         createdCount.updated++;
       } else {
-        const variable = figma.variables.createVariable(variableName, collection.id, 'COLOR');
-        variable.setValueForMode(modeId, blendedColor);
+        const variable = figma.variables.createVariable(opaqueVarName, collection.id, 'COLOR');
+        variable.setValueForMode(modeId, opaqueColor);
+        createdCount.new++;
+      }
+
+      // Create/update Opacity variable
+      const existingOpacityVar = existingVariables.find(v => v.name === opacityVarName);
+      if (existingOpacityVar) {
+        existingOpacityVar.setValueForMode(modeId, opacityColor);
+        createdCount.updated++;
+      } else {
+        const variable = figma.variables.createVariable(opacityVarName, collection.id, 'COLOR');
+        variable.setValueForMode(modeId, opacityColor);
         createdCount.new++;
       }
     }
