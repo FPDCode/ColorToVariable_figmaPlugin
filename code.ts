@@ -36,34 +36,58 @@ figma.ui.onmessage = async (msg) => {
         const fill = node.fills[0];
         
         if (fill.type === 'SOLID') {
-          const layerName = node.name;
+          const fullName = node.name;
           const color = fill.color;
+          
+          // Parse layer name for mode pattern: "variableName -modeName"
+          let variableName = fullName;
+          let modeName: string | null = null;
+          
+          if (fullName.includes(' -')) {
+            const parts = fullName.split(' -');
+            variableName = parts[0].trim();
+            modeName = parts[1].trim();
+          }
+          
+          // Get or create the mode
+          let modeId: string;
+          if (modeName) {
+            // Check if mode exists
+            let existingMode = collection.modes.find(m => m.name === modeName);
+            
+            if (!existingMode) {
+              // Create new mode
+              modeId = collection.addMode(modeName);
+            } else {
+              modeId = existingMode.modeId;
+            }
+          } else {
+            // Use default mode
+            modeId = collection.modes[0].modeId;
+          }
           
           // Check if variable already exists
           const existingVariables = collection.variableIds
             .map(id => figma.variables.getVariableById(id))
             .filter((v): v is Variable => v !== null);
           
-          const existingVar = existingVariables.find(v => v.name === layerName);
+          const existingVar = existingVariables.find(v => v.name === variableName);
+          
+          const colorValue = {
+            r: color.r,
+            g: color.g,
+            b: color.b,
+            a: fill.opacity !== undefined ? fill.opacity : 1
+          };
           
           if (existingVar) {
             // Update existing variable
-            existingVar.setValueForMode(collection.modes[0].modeId, {
-              r: color.r,
-              g: color.g,
-              b: color.b,
-              a: fill.opacity !== undefined ? fill.opacity : 1
-            });
+            existingVar.setValueForMode(modeId, colorValue);
             createdCount.updated++;
           } else {
             // Create new variable
-            const variable = figma.variables.createVariable(layerName, collection.id, 'COLOR');
-            variable.setValueForMode(collection.modes[0].modeId, {
-              r: color.r,
-              g: color.g,
-              b: color.b,
-              a: fill.opacity !== undefined ? fill.opacity : 1
-            });
+            const variable = figma.variables.createVariable(variableName, collection.id, 'COLOR');
+            variable.setValueForMode(modeId, colorValue);
             createdCount.new++;
           }
         }

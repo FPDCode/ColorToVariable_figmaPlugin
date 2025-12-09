@@ -119,6 +119,9 @@
       const msg = event.data.pluginMessage;
       
       if (msg.type === 'collections') {
+        // Save current selection
+        const currentValue = collectionSelect.value;
+        
         // Clear existing options except first
         collectionSelect.innerHTML = '<option value="">Create new collection</option>';
         
@@ -129,6 +132,11 @@
           option.textContent = collection.name;
           collectionSelect.appendChild(option);
         });
+        
+        // Restore selection
+        if (currentValue) {
+          collectionSelect.value = currentValue;
+        }
       }
       
       if (msg.type === 'success') {
