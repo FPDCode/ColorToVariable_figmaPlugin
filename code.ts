@@ -229,6 +229,198 @@ figma.ui.onmessage = async (msg) => {
     updateCollections();
   }
 
+  if (msg.type === 'interpolate-colors') {
+    const selection = figma.currentPage.selection;
+    
+    if (selection.length === 0) {
+      figma.ui.postMessage({ type: 'interpolate-error', message: 'Please select key color layers' });
+      return;
+    }
+
+    // Get or create collection
+    let collection: VariableCollection;
+    const collections = await figma.variables.getLocalVariableCollectionsAsync();
+    
+    if (msg.collectionId) {
+      collection = collections.find(c => c.id === msg.collectionId)!;
+    } else {
+      collection = figma.variables.createVariableCollection('Interpolated Colors');
+    }
+
+    // Parse selection into key colors
+    interface KeyColor {
+      position: number;
+      mode: 'Light' | 'Dark';
+      color: RGB;
+      groupName: string;
+    }
+
+    const keyColors: KeyColor[] = [];
+    let groupName = 'Color';
+
+    for (const node of selection) {
+      if (!('fills' in node) || !Array.isArray(node.fills) || node.fills.length === 0) continue;
+      const fill = node.fills[0];
+      if (fill.type !== 'SOLID') continue;
+
+      // Get group name from parent
+      if (node.parent) {
+        groupName = node.parent.name;
+      }
+
+      // Parse layer name: "300", "500 (Light)", "500 (Dark)", "700"
+      const name = node.name.trim();
+      let position: number;
+      let mode: 'Light' | 'Dark';
+
+      if (name.includes('(Light)')) {
+        position = parseInt(name.replace('(Light)', '').trim());
+        mode = 'Light';
+      } else if (name.includes('(Dark)')) {
+        position = parseInt(name.replace('(Dark)', '').trim());
+        mode = 'Dark';
+      } else {
+        position = parseInt(name);
+        // Determine mode based on position: <= 500 is Light, > 500 is Dark
+        mode = position <= 500 ? 'Light' : 'Dark';
+      }
+
+      if (!isNaN(position)) {
+        keyColors.push({
+          position,
+          mode,
+          color: fill.color,
+          groupName
+        });
+      }
+    }
+
+    if (keyColors.length === 0) {
+      figma.ui.postMessage({ type: 'interpolate-error', message: 'No valid key colors found. Name layers like "300", "500 (Light)", etc.' });
+      return;
+    }
+
+    // Separate into Light and Dark keys
+    const lightKeys = keyColors.filter(k => k.mode === 'Light').sort((a, b) => a.position - b.position);
+    const darkKeys = keyColors.filter(k => k.mode === 'Dark').sort((a, b) => a.position - b.position);
+
+    // Helper: linear interpolation between two colors
+    function lerpColor(c1: RGB, c2: RGB, t: number): RGB {
+      return {
+        r: c1.r + (c2.r - c1.r) * t,
+        g: c1.g + (c2.g - c1.g) * t,
+        b: c1.b + (c2.b - c1.b) * t
+      };
+    }
+
+    // Helper: lighten color (mix toward white)
+    function lightenColor(c: RGB, amount: number): RGB {
+      return lerpColor(c, { r: 1, g: 1, b: 1 }, amount);
+    }
+
+    // Helper: darken color (mix toward black)
+    function darkenColor(c: RGB, amount: number): RGB {
+      return lerpColor(c, { r: 0, g: 0, b: 0 }, amount);
+    }
+
+    // Helper: interpolate color at position given sorted key array
+    function getColorAtPosition(keys: KeyColor[], pos: number, scaleStart: number, scaleEnd: number, isLight: boolean): RGB {
+      if (keys.length === 0) {
+        return { r: 0.5, g: 0.5, b: 0.5 }; // Fallback gray
+      }
+
+      // Find surrounding keys
+      let lowerKey: KeyColor | null = null;
+      let upperKey: KeyColor | null = null;
+
+      for (const key of keys) {
+        if (key.position <= pos) lowerKey = key;
+        if (key.position >= pos && !upperKey) upperKey = key;
+      }
+
+      // Handle edge cases with auto-lighten/darken
+      if (!lowerKey && upperKey) {
+        // Position is before first key - lighten/darken toward scale start
+        const t = (upperKey.position - pos) / (upperKey.position - scaleStart);
+        return isLight ? lightenColor(upperKey.color, t * 0.9) : darkenColor(upperKey.color, t * 0.9);
+      }
+
+      if (!upperKey && lowerKey) {
+        // Position is after last key - lighten/darken toward scale end
+        const t = (pos - lowerKey.position) / (scaleEnd - lowerKey.position);
+        return isLight ? lightenColor(lowerKey.color, t * 0.9) : darkenColor(lowerKey.color, t * 0.9);
+      }
+
+      if (lowerKey && upperKey) {
+        if (lowerKey.position === upperKey.position) {
+          return lowerKey.color;
+        }
+        // Interpolate between keys
+        const t = (pos - lowerKey.position) / (upperKey.position - lowerKey.position);
+        return lerpColor(lowerKey.color, upperKey.color, t);
+      }
+
+      return { r: 0.5, g: 0.5, b: 0.5 };
+    }
+
+    const createdCount = { new: 0, updated: 0 };
+    const modeId = collection.modes[0].modeId;
+
+    // Get existing variables for update check
+    const existingVariables = collection.variableIds
+      .map(id => figma.variables.getVariableById(id))
+      .filter((v): v is Variable => v !== null);
+
+    // Generate Light scale: 000-500
+    const lightPositions = [0, 100, 200, 300, 400, 500];
+    for (const pos of lightPositions) {
+      const color = getColorAtPosition(lightKeys, pos, 0, 500, true);
+      // Only 500 gets the (Light) suffix
+      const posStr = pos.toString().padStart(3, '0');
+      const varName = pos === 500 ? `${groupName}/${posStr} (Light)` : `${groupName}/${posStr}`;
+      
+      const colorValue = { r: color.r, g: color.g, b: color.b, a: 1 };
+      const existingVar = existingVariables.find(v => v.name === varName);
+
+      if (existingVar) {
+        existingVar.setValueForMode(modeId, colorValue);
+        createdCount.updated++;
+      } else {
+        const variable = figma.variables.createVariable(varName, collection.id, 'COLOR');
+        variable.setValueForMode(modeId, colorValue);
+        createdCount.new++;
+      }
+    }
+
+    // Generate Dark scale: 500-1000
+    const darkPositions = [500, 600, 700, 800, 900, 1000];
+    for (const pos of darkPositions) {
+      const color = getColorAtPosition(darkKeys, pos, 500, 1000, false);
+      // Only 500 gets the (Dark) suffix
+      const posStr = pos.toString().padStart(3, '0');
+      const varName = pos === 500 ? `${groupName}/${posStr} (Dark)` : `${groupName}/${posStr}`;
+      
+      const colorValue = { r: color.r, g: color.g, b: color.b, a: 1 };
+      const existingVar = existingVariables.find(v => v.name === varName);
+
+      if (existingVar) {
+        existingVar.setValueForMode(modeId, colorValue);
+        createdCount.updated++;
+      } else {
+        const variable = figma.variables.createVariable(varName, collection.id, 'COLOR');
+        variable.setValueForMode(modeId, colorValue);
+        createdCount.new++;
+      }
+    }
+
+    figma.ui.postMessage({ 
+      type: 'interpolate-success', 
+      message: `Created ${createdCount.new} new, updated ${createdCount.updated} variables` 
+    });
+    
+    updateCollections();
+  }
+
   if (msg.type === 'generate-layers') {
     const collections = await figma.variables.getLocalVariableCollectionsAsync();
     const collection = collections.find(c => c.id === msg.collectionId);

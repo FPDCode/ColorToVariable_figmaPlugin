@@ -111,9 +111,10 @@
 </head>
 <body>
   <div class="tabs">
-    <button class="tab active" data-tab="create">Create Variables</button>
-    <button class="tab" data-tab="generate">Generate Layers</button>
-    <button class="tab" data-tab="extract">Extract Primitives</button>
+    <button class="tab active" data-tab="create">Create</button>
+    <button class="tab" data-tab="generate">Generate</button>
+    <button class="tab" data-tab="extract">Extract</button>
+    <button class="tab" data-tab="interpolate">Interpolate</button>
   </div>
 
   <!-- Tab 1: Create Variables -->
@@ -158,6 +159,20 @@
     <div id="extract-message" class="message"></div>
   </div>
 
+  <!-- Tab 4: Interpolate Colors -->
+  <div id="interpolate-tab" class="tab-content">
+    <h3>Keys → Color Scale</h3>
+    <div class="form-group">
+      <label for="interpolate-collection">Collection</label>
+      <select id="interpolate-collection">
+        <option value="">Create new collection</option>
+      </select>
+      <div class="hint">Select key colors (e.g., 300, 500 Light, 500 Dark, 700) to generate full 000-1000 scale</div>
+    </div>
+    <button id="interpolate" class="primary">Interpolate Colors</button>
+    <div id="interpolate-message" class="message"></div>
+  </div>
+
   <script>
     // Tab switching
     const tabs = document.querySelectorAll('.tab');
@@ -184,6 +199,10 @@
     const extractCollectionSelect = document.getElementById('extract-collection');
     const extractButton = document.getElementById('extract');
     const extractMessageDiv = document.getElementById('extract-message');
+
+    const interpolateCollectionSelect = document.getElementById('interpolate-collection');
+    const interpolateButton = document.getElementById('interpolate');
+    const interpolateMessageDiv = document.getElementById('interpolate-message');
 
     function showMessage(element, text, type) {
       element.textContent = text;
@@ -235,6 +254,17 @@
       }, '*');
     };
 
+    // Interpolate Colors button
+    interpolateButton.onclick = () => {
+      const collectionId = interpolateCollectionSelect.value || null;
+      parent.postMessage({ 
+        pluginMessage: { 
+          type: 'interpolate-colors', 
+          collectionId 
+        } 
+      }, '*');
+    };
+
     window.onmessage = (event) => {
       const msg = event.data.pluginMessage;
       
@@ -243,6 +273,7 @@
         const currentValue = collectionSelect.value;
         const currentGenValue = genCollectionSelect.value;
         const currentExtractValue = extractCollectionSelect.value;
+        const currentInterpolateValue = interpolateCollectionSelect.value;
         
         // Update create tab dropdown
         collectionSelect.innerHTML = '<option value="">Create new collection</option>';
@@ -270,6 +301,15 @@
           option.textContent = collection.name;
           extractCollectionSelect.appendChild(option);
         });
+
+        // Update interpolate tab dropdown
+        interpolateCollectionSelect.innerHTML = '<option value="">Create new collection</option>';
+        msg.collections.forEach(collection => {
+          const option = document.createElement('option');
+          option.value = collection.id;
+          option.textContent = collection.name;
+          interpolateCollectionSelect.appendChild(option);
+        });
         
         // Restore selections
         if (currentValue) collectionSelect.value = currentValue;
@@ -278,6 +318,7 @@
           generateButton.disabled = false;
         }
         if (currentExtractValue) extractCollectionSelect.value = currentExtractValue;
+        if (currentInterpolateValue) interpolateCollectionSelect.value = currentInterpolateValue;
       }
       
       if (msg.type === 'success') {
@@ -302,6 +343,14 @@
 
       if (msg.type === 'extract-error') {
         showMessage(extractMessageDiv, msg.message, 'error');
+      }
+
+      if (msg.type === 'interpolate-success') {
+        showMessage(interpolateMessageDiv, msg.message, 'success');
+      }
+
+      if (msg.type === 'interpolate-error') {
+        showMessage(interpolateMessageDiv, msg.message, 'error');
       }
     };
   </script>
