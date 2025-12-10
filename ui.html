@@ -266,7 +266,6 @@
   <div class="tabs">
     <button class="tab active" data-tab="create">Create</button>
     <button class="tab" data-tab="generate">Generate</button>
-    <button class="tab" data-tab="extract">Extract</button>
     <button class="tab" data-tab="interpolate">Interpolate</button>
     <button class="tab" data-tab="modemaker">Modes</button>
   </div>
@@ -306,21 +305,7 @@
     <div id="generate-message" class="message"></div>
   </div>
 
-  <!-- Tab 3: Extract Primitives -->
-  <div id="extract-tab" class="tab-content">
-    <h3>Layers → Primitives</h3>
-    <div class="form-group">
-      <label for="extract-collection">Collection</label>
-      <select id="extract-collection">
-        <option value="">Create new collection</option>
-      </select>
-      <div class="hint">Extracts computed colors (fill + opacity over parent background)</div>
-    </div>
-    <button id="extract" class="primary">Extract Primitives</button>
-    <div id="extract-message" class="message"></div>
-  </div>
-
-  <!-- Tab 4: Interpolate Colors -->
+  <!-- Tab 3: Interpolate Colors -->
   <div id="interpolate-tab" class="tab-content">
     <h3>Keys → Color Scale</h3>
     <div class="form-group">
@@ -414,10 +399,6 @@
     const genCollectionSelect = document.getElementById('gen-collection');
     const generateButton = document.getElementById('generate');
     const generateMessageDiv = document.getElementById('generate-message');
-
-    const extractCollectionSelect = document.getElementById('extract-collection');
-    const extractButton = document.getElementById('extract');
-    const extractMessageDiv = document.getElementById('extract-message');
 
     const interpolateCollectionSelect = document.getElementById('interpolate-collection');
     const interpolateButton = document.getElementById('interpolate');
@@ -656,17 +637,6 @@
       }, '*');
     };
 
-    // Extract Primitives button
-    extractButton.onclick = () => {
-      const collectionId = extractCollectionSelect.value || null;
-      parent.postMessage({ 
-        pluginMessage: { 
-          type: 'extract-primitives', 
-          collectionId 
-        } 
-      }, '*');
-    };
-
     // Interpolate Colors button
     interpolateButton.onclick = () => {
       const collectionId = interpolateCollectionSelect.value || null;
@@ -685,7 +655,6 @@
         // Save current selections
         const currentValue = collectionSelect.value;
         const currentGenValue = genCollectionSelect.value;
-        const currentExtractValue = extractCollectionSelect.value;
         const currentInterpolateValue = interpolateCollectionSelect.value;
         
         // Update create tab dropdown
@@ -704,15 +673,6 @@
           option.value = collection.id;
           option.textContent = collection.name;
           genCollectionSelect.appendChild(option);
-        });
-
-        // Update extract tab dropdown
-        extractCollectionSelect.innerHTML = '<option value="">Create new collection</option>';
-        msg.collections.forEach(collection => {
-          const option = document.createElement('option');
-          option.value = collection.id;
-          option.textContent = collection.name;
-          extractCollectionSelect.appendChild(option);
         });
 
         // Update interpolate tab dropdown
@@ -740,7 +700,6 @@
           genCollectionSelect.value = currentGenValue;
           generateButton.disabled = false;
         }
-        if (currentExtractValue) extractCollectionSelect.value = currentExtractValue;
         if (currentInterpolateValue) interpolateCollectionSelect.value = currentInterpolateValue;
         if (currentModeValue) modeCollectionSelect.value = currentModeValue;
       }
@@ -759,14 +718,6 @@
       
       if (msg.type === 'generate-error') {
         showMessage(generateMessageDiv, msg.message, 'error');
-      }
-
-      if (msg.type === 'extract-success') {
-        showMessage(extractMessageDiv, msg.message, 'success');
-      }
-
-      if (msg.type === 'extract-error') {
-        showMessage(extractMessageDiv, msg.message, 'error');
       }
 
       if (msg.type === 'interpolate-success') {
