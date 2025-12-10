@@ -318,6 +318,57 @@ figma.ui.onmessage = async (msg) => {
       return lerpColor(c, { r: 0, g: 0, b: 0 }, amount);
     }
 
+    // Helper: RGB to HSL conversion
+    function rgbToHsl(c: RGB): { h: number; s: number; l: number } {
+      const max = Math.max(c.r, c.g, c.b);
+      const min = Math.min(c.r, c.g, c.b);
+      let h = 0, s = 0;
+      const l = (max + min) / 2;
+
+      if (max !== min) {
+        const d = max - min;
+        s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+        switch (max) {
+          case c.r: h = ((c.g - c.b) / d + (c.g < c.b ? 6 : 0)) / 6; break;
+          case c.g: h = ((c.b - c.r) / d + 2) / 6; break;
+          case c.b: h = ((c.r - c.g) / d + 4) / 6; break;
+        }
+      }
+      return { h, s, l };
+    }
+
+    // Helper: HSL to RGB conversion
+    function hslToRgb(h: number, s: number, l: number): RGB {
+      let r, g, b;
+      if (s === 0) {
+        r = g = b = l;
+      } else {
+        const hue2rgb = (p: number, q: number, t: number) => {
+          if (t < 0) t += 1;
+          if (t > 1) t -= 1;
+          if (t < 1/6) return p + (q - p) * 6 * t;
+          if (t < 1/2) return q;
+          if (t < 2/3) return p + (q - p) * (2/3 - t) * 6;
+          return p;
+        };
+        const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+        const p = 2 * l - q;
+        r = hue2rgb(p, q, h + 1/3);
+        g = hue2rgb(p, q, h);
+        b = hue2rgb(p, q, h - 1/3);
+      }
+      return { r, g, b };
+    }
+
+    // Helper: boost color saturation and lightness
+    function boostColor(c: RGB, satBoost: number, lightBoost: number): RGB {
+      const hsl = rgbToHsl(c);
+      // satBoost and lightBoost are in percentage points (e.g., 7 = +7%)
+      const newS = Math.min(1, Math.max(0, hsl.s + satBoost / 100));
+      const newL = Math.min(1, Math.max(0, hsl.l + lightBoost / 100));
+      return hslToRgb(hsl.h, newS, newL);
+    }
+
     // Helper: get falloff amount based on steps from key (non-linear)
     function getFalloffAmount(steps: number): number {
       const falloff = [0, 0.30, 0.50, 0.80, 0.90, 0.95];
@@ -454,18 +505,26 @@ figma.ui.onmessage = async (msg) => {
       }
 
       // Generate Dark scale: 500-1000
+      // For Opacity, boost the 700 key color (+7 sat, +2 light)
+      const darkKeysForOpacity = darkKeys.map(k => {
+        if (k.position === 700) {
+          return { ...k, color: boostColor(k.color, 7, 2) };
+        }
+        return k;
+      });
+
       const darkPositions = [500, 600, 700, 800, 900, 1000];
       for (const pos of darkPositions) {
         const posStr = pos.toString().padStart(3, '0');
         const posSuffix = pos === 500 ? `${posStr} (Dark)` : posStr;
         
-        // Opaque: blended color, alpha = 1
+        // Opaque: blended color, alpha = 1 (uses original keys)
         const opaqueColor = getColorAtPosition(darkKeys, pos, 500, 1000, false);
         const opaqueVarName = `${groupName}/Opaque/${posSuffix}`;
         createOrUpdateVariable(opaqueVarName, { r: opaqueColor.r, g: opaqueColor.g, b: opaqueColor.b, a: 1 });
 
-        // Opacity: key color (no darkening), alpha based on distance from 500
-        const opacityColor = getColorForOpacity(darkKeys, pos);
+        // Opacity: uses boosted 700 key for better visibility
+        const opacityColor = getColorForOpacity(darkKeysForOpacity, pos);
         const opacityVarName = `${groupName}/Opacity/${posSuffix}`;
         createOrUpdateVariable(opacityVarName, { r: opacityColor.r, g: opacityColor.g, b: opacityColor.b, a: getAlphaForPosition(pos) });
       }
