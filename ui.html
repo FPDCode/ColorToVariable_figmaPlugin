@@ -107,6 +107,112 @@
       color: #666;
       margin-top: 4px;
     }
+    .mode-selector {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 16px;
+    }
+    .mode-btn {
+      flex: 1;
+      padding: 8px 4px;
+      border: 2px solid #e0e0e0;
+      border-radius: 6px;
+      background: white;
+      cursor: pointer;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+      font-size: 10px;
+      color: #666;
+      transition: all 0.2s;
+    }
+    .mode-btn:hover {
+      border-color: #18a0fb;
+      background: #f0f9ff;
+    }
+    .mode-btn.active {
+      border-color: #18a0fb;
+      background: #e6f4ff;
+      color: #18a0fb;
+    }
+    .mode-icon {
+      width: 24px;
+      height: 24px;
+      border-radius: 4px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .mode-icon.light {
+      background: linear-gradient(135deg, #fff 50%, #f0f0f0 50%);
+      border: 1px solid #ddd;
+    }
+    .mode-icon.dark {
+      background: linear-gradient(135deg, #333 50%, #1a1a1a 50%);
+      border: 1px solid #555;
+    }
+    .mode-icon.ic-light {
+      background: #fff;
+      border: 2px solid #000;
+    }
+    .mode-icon.ic-dark {
+      background: #000;
+      border: 2px solid #fff;
+    }
+    .hex-input-row {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+    .color-preview {
+      width: 36px;
+      height: 36px;
+      border-radius: 6px;
+      border: 1px solid #ccc;
+      background: #fff;
+      flex-shrink: 0;
+    }
+    .hex-input {
+      flex: 1;
+      padding: 8px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      font-size: 12px;
+      font-family: monospace;
+    }
+    .text-input {
+      width: 100%;
+      padding: 8px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      font-size: 12px;
+    }
+    .preview-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 4px;
+      margin-top: 12px;
+      padding: 8px;
+      background: #f5f5f5;
+      border-radius: 6px;
+    }
+    .preview-swatch {
+      aspect-ratio: 1;
+      border-radius: 4px;
+      border: 1px solid #ddd;
+      display: flex;
+      align-items: flex-end;
+      justify-content: center;
+      padding: 2px;
+    }
+    .preview-swatch span {
+      font-size: 8px;
+      color: #666;
+      background: rgba(255,255,255,0.8);
+      padding: 1px 3px;
+      border-radius: 2px;
+    }
     .switch-row {
       display: flex;
       align-items: center;
@@ -162,6 +268,7 @@
     <button class="tab" data-tab="generate">Generate</button>
     <button class="tab" data-tab="extract">Extract</button>
     <button class="tab" data-tab="interpolate">Interpolate</button>
+    <button class="tab" data-tab="modemaker">Modes</button>
   </div>
 
   <!-- Tab 1: Create Variables -->
@@ -227,6 +334,64 @@
     <div id="interpolate-message" class="message"></div>
   </div>
 
+  <!-- Tab 5: Mode Maker -->
+  <div id="modemaker-tab" class="tab-content">
+    <h3>Hex → Light/Dark Modes</h3>
+    
+    <div class="form-group">
+      <label for="mode-collection">Collection</label>
+      <select id="mode-collection">
+        <option value="">Create new collection</option>
+      </select>
+    </div>
+
+    <div class="form-group">
+      <label>Input Mode</label>
+      <div class="mode-selector">
+        <button class="mode-btn active" data-mode="Light">
+          <div class="mode-icon light"></div>
+          <span>Light</span>
+        </button>
+        <button class="mode-btn" data-mode="Dark">
+          <div class="mode-icon dark"></div>
+          <span>Dark</span>
+        </button>
+        <button class="mode-btn" data-mode="IC - Light">
+          <div class="mode-icon ic-light"></div>
+          <span>IC - Light</span>
+        </button>
+        <button class="mode-btn" data-mode="IC - Dark">
+          <div class="mode-icon ic-dark"></div>
+          <span>IC - Dark</span>
+        </button>
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label for="hex-input">Hex Color</label>
+      <div class="hex-input-row">
+        <div id="color-preview" class="color-preview"></div>
+        <input type="text" id="hex-input" class="hex-input" placeholder="FF383C" maxlength="7">
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label for="var-name">Variable Name</label>
+      <input type="text" id="var-name" class="text-input" placeholder="Colors/Red">
+      <div class="hint">Use / for groups (e.g., Backgrounds/Primary)</div>
+    </div>
+
+    <div class="preview-grid" id="preview-grid">
+      <div class="preview-swatch" id="preview-light" style="background:#ccc"><span>Light</span></div>
+      <div class="preview-swatch" id="preview-dark" style="background:#ccc"><span>Dark</span></div>
+      <div class="preview-swatch" id="preview-ic-light" style="background:#ccc"><span>IC - L</span></div>
+      <div class="preview-swatch" id="preview-ic-dark" style="background:#ccc"><span>IC - D</span></div>
+    </div>
+
+    <button id="generate-modes" class="primary" style="margin-top:12px">Generate Mode Colors</button>
+    <div id="modemaker-message" class="message"></div>
+  </div>
+
   <script>
     // Tab switching
     const tabs = document.querySelectorAll('.tab');
@@ -257,6 +422,197 @@
     const interpolateCollectionSelect = document.getElementById('interpolate-collection');
     const interpolateButton = document.getElementById('interpolate');
     const interpolateMessageDiv = document.getElementById('interpolate-message');
+
+    // Mode Maker elements
+    const modeCollectionSelect = document.getElementById('mode-collection');
+    const hexInput = document.getElementById('hex-input');
+    const varNameInput = document.getElementById('var-name');
+    const colorPreview = document.getElementById('color-preview');
+    const generateModesButton = document.getElementById('generate-modes');
+    const modemakerMessageDiv = document.getElementById('modemaker-message');
+    const modeBtns = document.querySelectorAll('.mode-btn');
+    let selectedMode = 'Light';
+
+    // Mode button selection
+    modeBtns.forEach(btn => {
+      btn.onclick = () => {
+        modeBtns.forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        selectedMode = btn.dataset.mode;
+        updateColorPreview();
+      };
+    });
+
+    // Hex input handling
+    hexInput.oninput = () => {
+      let val = hexInput.value.replace(/[^0-9A-Fa-f]/g, '').toUpperCase();
+      if (val.length > 6) val = val.substring(0, 6);
+      hexInput.value = val;
+      updateColorPreview();
+    };
+
+    function hexToRgb(hex) {
+      if (hex.length !== 6) return null;
+      const r = parseInt(hex.substring(0, 2), 16) / 255;
+      const g = parseInt(hex.substring(2, 4), 16) / 255;
+      const b = parseInt(hex.substring(4, 6), 16) / 255;
+      return { r, g, b };
+    }
+
+    function rgbToHex(r, g, b) {
+      const toHex = (c) => Math.round(Math.max(0, Math.min(1, c)) * 255).toString(16).padStart(2, '0').toUpperCase();
+      return toHex(r) + toHex(g) + toHex(b);
+    }
+
+    function rgbToHsl(r, g, b) {
+      const max = Math.max(r, g, b), min = Math.min(r, g, b);
+      let h = 0, s = 0, l = (max + min) / 2;
+      if (max !== min) {
+        const d = max - min;
+        s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+        switch (max) {
+          case r: h = ((g - b) / d + (g < b ? 6 : 0)) / 6; break;
+          case g: h = ((b - r) / d + 2) / 6; break;
+          case b: h = ((r - g) / d + 4) / 6; break;
+        }
+      }
+      return { h, s, l };
+    }
+
+    function hslToRgb(h, s, l) {
+      let r, g, b;
+      if (s === 0) {
+        r = g = b = l;
+      } else {
+        const hue2rgb = (p, q, t) => {
+          if (t < 0) t += 1;
+          if (t > 1) t -= 1;
+          if (t < 1/6) return p + (q - p) * 6 * t;
+          if (t < 1/2) return q;
+          if (t < 2/3) return p + (q - p) * (2/3 - t) * 6;
+          return p;
+        };
+        const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+        const p = 2 * l - q;
+        r = hue2rgb(p, q, h + 1/3);
+        g = hue2rgb(p, q, h);
+        b = hue2rgb(p, q, h - 1/3);
+      }
+      return { r, g, b };
+    }
+
+    function isGrayscale(r, g, b) {
+      const hsl = rgbToHsl(r, g, b);
+      return hsl.s < 0.05;
+    }
+
+    function adjustHsl(r, g, b, lDelta, sDelta) {
+      const hsl = rgbToHsl(r, g, b);
+      const newL = Math.max(0, Math.min(1, hsl.l + lDelta));
+      const newS = Math.max(0, Math.min(1, hsl.s + sDelta));
+      return hslToRgb(hsl.h, newS, newL);
+    }
+
+    function generateModeColors(inputHex, inputMode) {
+      const rgb = hexToRgb(inputHex);
+      if (!rgb) return null;
+
+      const grayscale = isGrayscale(rgb.r, rgb.g, rgb.b);
+      let lightRgb;
+
+      // First, convert input to Light base
+      if (inputMode === 'Light') {
+        lightRgb = rgb;
+      } else if (grayscale) {
+        // Grayscale reverse transformations
+        const hsl = rgbToHsl(rgb.r, rgb.g, rgb.b);
+        if (inputMode === 'Dark') {
+          lightRgb = hslToRgb(hsl.h, hsl.s, 1 - hsl.l); // Invert
+        } else if (inputMode === 'IC - Light') {
+          lightRgb = hslToRgb(hsl.h, hsl.s, hsl.l + 0.05); // Reverse darken
+        } else { // IC - Dark
+          lightRgb = hslToRgb(hsl.h, hsl.s, 1 - (hsl.l - 0.05)); // Reverse lighten + invert
+        }
+      } else {
+        // Chromatic reverse transformations
+        if (inputMode === 'Dark') {
+          lightRgb = adjustHsl(rgb.r, rgb.g, rgb.b, -0.03, 0);
+        } else if (inputMode === 'IC - Light') {
+          lightRgb = adjustHsl(rgb.r, rgb.g, rgb.b, 0.12, -0.08);
+        } else { // IC - Dark
+          lightRgb = adjustHsl(rgb.r, rgb.g, rgb.b, -0.15, 0);
+        }
+      }
+
+      // Generate all 4 modes from Light base
+      let results = {};
+      if (grayscale) {
+        const lightHsl = rgbToHsl(lightRgb.r, lightRgb.g, lightRgb.b);
+        results.Light = lightRgb;
+        results.Dark = hslToRgb(lightHsl.h, lightHsl.s, 1 - lightHsl.l);
+        results['IC - Light'] = hslToRgb(lightHsl.h, lightHsl.s, Math.max(0, lightHsl.l - 0.05));
+        const darkL = 1 - lightHsl.l;
+        results['IC - Dark'] = hslToRgb(lightHsl.h, lightHsl.s, Math.min(1, darkL + 0.05));
+      } else {
+        results.Light = lightRgb;
+        results.Dark = adjustHsl(lightRgb.r, lightRgb.g, lightRgb.b, 0.03, 0);
+        results['IC - Light'] = adjustHsl(lightRgb.r, lightRgb.g, lightRgb.b, -0.12, 0.08);
+        results['IC - Dark'] = adjustHsl(lightRgb.r, lightRgb.g, lightRgb.b, 0.15, 0);
+      }
+
+      return {
+        Light: rgbToHex(results.Light.r, results.Light.g, results.Light.b),
+        Dark: rgbToHex(results.Dark.r, results.Dark.g, results.Dark.b),
+        'IC - Light': rgbToHex(results['IC - Light'].r, results['IC - Light'].g, results['IC - Light'].b),
+        'IC - Dark': rgbToHex(results['IC - Dark'].r, results['IC - Dark'].g, results['IC - Dark'].b)
+      };
+    }
+
+    function updateColorPreview() {
+      const hex = hexInput.value;
+      if (hex.length === 6) {
+        colorPreview.style.background = '#' + hex;
+        const colors = generateModeColors(hex, selectedMode);
+        if (colors) {
+          document.getElementById('preview-light').style.background = '#' + colors.Light;
+          document.getElementById('preview-dark').style.background = '#' + colors.Dark;
+          document.getElementById('preview-ic-light').style.background = '#' + colors['IC - Light'];
+          document.getElementById('preview-ic-dark').style.background = '#' + colors['IC - Dark'];
+        }
+      } else {
+        colorPreview.style.background = '#fff';
+        document.getElementById('preview-light').style.background = '#ccc';
+        document.getElementById('preview-dark').style.background = '#ccc';
+        document.getElementById('preview-ic-light').style.background = '#ccc';
+        document.getElementById('preview-ic-dark').style.background = '#ccc';
+      }
+    }
+
+    // Generate Modes button
+    generateModesButton.onclick = () => {
+      const hex = hexInput.value;
+      const varName = varNameInput.value.trim();
+      const collectionId = modeCollectionSelect.value || null;
+
+      if (hex.length !== 6) {
+        showMessage(modemakerMessageDiv, 'Please enter a valid 6-digit hex code', 'error');
+        return;
+      }
+      if (!varName) {
+        showMessage(modemakerMessageDiv, 'Please enter a variable name', 'error');
+        return;
+      }
+
+      const colors = generateModeColors(hex, selectedMode);
+      parent.postMessage({
+        pluginMessage: {
+          type: 'generate-mode-colors',
+          collectionId,
+          varName,
+          colors
+        }
+      }, '*');
+    };
 
     function showMessage(element, text, type) {
       element.textContent = text;
@@ -367,6 +723,16 @@
           option.textContent = collection.name;
           interpolateCollectionSelect.appendChild(option);
         });
+
+        // Update mode maker tab dropdown
+        const currentModeValue = modeCollectionSelect.value;
+        modeCollectionSelect.innerHTML = '<option value="">Create new collection</option>';
+        msg.collections.forEach(collection => {
+          const option = document.createElement('option');
+          option.value = collection.id;
+          option.textContent = collection.name;
+          modeCollectionSelect.appendChild(option);
+        });
         
         // Restore selections
         if (currentValue) collectionSelect.value = currentValue;
@@ -376,6 +742,7 @@
         }
         if (currentExtractValue) extractCollectionSelect.value = currentExtractValue;
         if (currentInterpolateValue) interpolateCollectionSelect.value = currentInterpolateValue;
+        if (currentModeValue) modeCollectionSelect.value = currentModeValue;
       }
       
       if (msg.type === 'success') {
@@ -408,6 +775,14 @@
 
       if (msg.type === 'interpolate-error') {
         showMessage(interpolateMessageDiv, msg.message, 'error');
+      }
+
+      if (msg.type === 'modemaker-success') {
+        showMessage(modemakerMessageDiv, msg.message, 'success');
+      }
+
+      if (msg.type === 'modemaker-error') {
+        showMessage(modemakerMessageDiv, msg.message, 'error');
       }
     };
   </script>

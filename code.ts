@@ -1,4 +1,4 @@
-figma.showUI(__html__, { width: 320, height: 300 });
+figma.showUI(__html__, { width: 420, height: 640 });
 
 // Send collections to UI on load
 async function updateCollections() {
@@ -660,6 +660,80 @@ figma.ui.onmessage = async (msg) => {
       type: 'generate-success', 
       message: `Generated ${layerCount} color swatches` 
     });
+  }
+
+  if (msg.type === 'generate-mode-colors') {
+    const { collectionId, varName, colors } = msg;
+
+    // Get or create collection
+    let collection: VariableCollection;
+    const collections = await figma.variables.getLocalVariableCollectionsAsync();
+    
+    if (collectionId) {
+      collection = collections.find(c => c.id === collectionId)!;
+      if (!collection) {
+        figma.ui.postMessage({ type: 'modemaker-error', message: 'Collection not found' });
+        return;
+      }
+    } else {
+      collection = figma.variables.createVariableCollection('Mode Colors');
+    }
+
+    // Ensure all 4 modes exist
+    const modeNames = ['Light', 'Dark', 'IC - Light', 'IC - Dark'];
+    const modeIds: { [key: string]: string } = {};
+
+    for (const modeName of modeNames) {
+      const existingMode = collection.modes.find(m => m.name === modeName);
+      if (existingMode) {
+        modeIds[modeName] = existingMode.modeId;
+      } else {
+        // Create new mode (or rename default if it's the first custom mode)
+        if (collection.modes.length === 1 && collection.modes[0].name === 'Mode 1') {
+          collection.renameMode(collection.modes[0].modeId, modeName);
+          modeIds[modeName] = collection.modes[0].modeId;
+        } else {
+          modeIds[modeName] = collection.addMode(modeName);
+        }
+      }
+    }
+
+    // Helper: hex to RGBA
+    function hexToRgba(hex: string): RGBA {
+      const r = parseInt(hex.substring(0, 2), 16) / 255;
+      const g = parseInt(hex.substring(2, 4), 16) / 255;
+      const b = parseInt(hex.substring(4, 6), 16) / 255;
+      return { r, g, b, a: 1 };
+    }
+
+    // Check if variable already exists
+    const existingVariables = collection.variableIds
+      .map(id => figma.variables.getVariableById(id))
+      .filter((v): v is Variable => v !== null);
+    
+    let variable = existingVariables.find(v => v.name === varName);
+    let isUpdate = false;
+    
+    if (variable) {
+      isUpdate = true;
+    } else {
+      variable = figma.variables.createVariable(varName, collection.id, 'COLOR');
+    }
+
+    // Set values for all 4 modes
+    for (const modeName of modeNames) {
+      const hexColor = colors[modeName];
+      if (hexColor && modeIds[modeName]) {
+        variable.setValueForMode(modeIds[modeName], hexToRgba(hexColor));
+      }
+    }
+
+    figma.ui.postMessage({ 
+      type: 'modemaker-success', 
+      message: isUpdate ? `Updated "${varName}" with 4 modes` : `Created "${varName}" with 4 modes`
+    });
+    
+    updateCollections();
   }
 };
 
