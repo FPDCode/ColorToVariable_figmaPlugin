@@ -107,9 +107,9 @@ figma.ui.onmessage = async (msg) => {
           }
           
           // Check if variable already exists
-          const existingVariables = collection.variableIds
-            .map(id => figma.variables.getVariableById(id))
-            .filter((v): v is Variable => v !== null);
+          const existingVariables = (await Promise.all(
+            collection.variableIds.map(id => figma.variables.getVariableByIdAsync(id))
+          )).filter((v): v is Variable => v !== null);
           
           const existingVar = existingVariables.find(v => v.name === variableName);
           
@@ -157,9 +157,9 @@ figma.ui.onmessage = async (msg) => {
     }
 
     // Get all color variables from the collection
-    const variables = collection.variableIds
-      .map(id => figma.variables.getVariableById(id))
-      .filter((v): v is Variable => v !== null && v.resolvedType === 'COLOR');
+    const variables = (await Promise.all(
+      collection.variableIds.map(id => figma.variables.getVariableByIdAsync(id))
+    )).filter((v): v is Variable => v !== null && v.resolvedType === 'COLOR');
 
     if (variables.length === 0) {
       figma.ui.postMessage({ type: 'scan-error', message: 'No color variables in this collection' });
@@ -346,7 +346,7 @@ figma.ui.onmessage = async (msg) => {
       return;
     }
 
-    const variable = figma.variables.getVariableById(varId);
+    const variable = await figma.variables.getVariableByIdAsync(varId);
     if (!variable) {
       figma.ui.postMessage({ type: 'connect-error', message: 'Variable not found' });
       return;
@@ -611,9 +611,9 @@ figma.ui.onmessage = async (msg) => {
     const modeId = collection.modes[0].modeId;
 
     // Get existing variables for update check
-    const existingVariables = collection.variableIds
-      .map(id => figma.variables.getVariableById(id))
-      .filter((v): v is Variable => v !== null);
+    const existingVariables = (await Promise.all(
+      collection.variableIds.map(id => figma.variables.getVariableByIdAsync(id))
+    )).filter((v): v is Variable => v !== null);
 
     // Helper: get alpha based on distance from 500
     function getAlphaForPosition(pos: number): number {
@@ -704,9 +704,9 @@ figma.ui.onmessage = async (msg) => {
     }
 
     // Get all color variables from the collection
-    const variables = collection.variableIds
-      .map(id => figma.variables.getVariableById(id))
-      .filter((v): v is Variable => v !== null && v.resolvedType === 'COLOR');
+    const variables = (await Promise.all(
+      collection.variableIds.map(id => figma.variables.getVariableByIdAsync(id))
+    )).filter((v): v is Variable => v !== null && v.resolvedType === 'COLOR');
 
     if (variables.length === 0) {
       figma.ui.postMessage({ type: 'generate-error', message: 'No color variables found in this collection' });
@@ -863,9 +863,9 @@ figma.ui.onmessage = async (msg) => {
     }
 
     // Check if variable already exists
-    const existingVariables = collection.variableIds
-      .map(id => figma.variables.getVariableById(id))
-      .filter((v): v is Variable => v !== null);
+    const existingVariables = (await Promise.all(
+      collection.variableIds.map(id => figma.variables.getVariableByIdAsync(id))
+    )).filter((v): v is Variable => v !== null);
     
     let variable = existingVariables.find(v => v.name === varName);
     let isUpdate = false;
