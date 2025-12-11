@@ -260,6 +260,25 @@
     input:checked + .slider:before {
       transform: translateX(16px);
     }
+    .output-mode-checkboxes {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px 16px;
+    }
+    .checkbox-label {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      font-weight: normal;
+      font-size: 11px;
+      cursor: pointer;
+    }
+    .checkbox-label input[type="checkbox"] {
+      width: 14px;
+      height: 14px;
+      margin: 0;
+      cursor: pointer;
+    }
     .suggestions-list {
       max-height: 320px;
       overflow-y: auto;
@@ -440,6 +459,27 @@
       <div class="hint">Use / for groups (e.g., Backgrounds/Primary)</div>
     </div>
 
+    <div class="form-group">
+      <label>Output Modes</label>
+      <div class="output-mode-checkboxes">
+        <label class="checkbox-label">
+          <input type="checkbox" id="output-all" checked> All
+        </label>
+        <label class="checkbox-label">
+          <input type="checkbox" id="output-light" checked> Light
+        </label>
+        <label class="checkbox-label">
+          <input type="checkbox" id="output-dark" checked> Dark
+        </label>
+        <label class="checkbox-label">
+          <input type="checkbox" id="output-ic-light" checked> IC-Light
+        </label>
+        <label class="checkbox-label">
+          <input type="checkbox" id="output-ic-dark" checked> IC-Dark
+        </label>
+      </div>
+    </div>
+
     <div class="preview-grid" id="preview-grid">
       <div class="preview-swatch" id="preview-light" style="background:#ccc"><span>Light</span></div>
       <div class="preview-swatch" id="preview-dark" style="background:#ccc"><span>Dark</span></div>
@@ -510,6 +550,44 @@
     const modemakerMessageDiv = document.getElementById('modemaker-message');
     const modeBtns = document.querySelectorAll('.mode-btn');
     let selectedMode = 'Light';
+
+    // Output mode checkboxes
+    const outputAllCheckbox = document.getElementById('output-all');
+    const outputLightCheckbox = document.getElementById('output-light');
+    const outputDarkCheckbox = document.getElementById('output-dark');
+    const outputIcLightCheckbox = document.getElementById('output-ic-light');
+    const outputIcDarkCheckbox = document.getElementById('output-ic-dark');
+    const individualOutputCheckboxes = [outputLightCheckbox, outputDarkCheckbox, outputIcLightCheckbox, outputIcDarkCheckbox];
+
+    // "All" checkbox toggles all others
+    outputAllCheckbox.onchange = () => {
+      individualOutputCheckboxes.forEach(cb => cb.checked = outputAllCheckbox.checked);
+      updatePreviewVisibility();
+    };
+
+    // Individual checkboxes update "All" state
+    individualOutputCheckboxes.forEach(cb => {
+      cb.onchange = () => {
+        outputAllCheckbox.checked = individualOutputCheckboxes.every(c => c.checked);
+        updatePreviewVisibility();
+      };
+    });
+
+    function getSelectedOutputModes() {
+      const modes = [];
+      if (outputLightCheckbox.checked) modes.push('Light');
+      if (outputDarkCheckbox.checked) modes.push('Dark');
+      if (outputIcLightCheckbox.checked) modes.push('IC - Light');
+      if (outputIcDarkCheckbox.checked) modes.push('IC - Dark');
+      return modes;
+    }
+
+    function updatePreviewVisibility() {
+      document.getElementById('preview-light').style.display = outputLightCheckbox.checked ? 'flex' : 'none';
+      document.getElementById('preview-dark').style.display = outputDarkCheckbox.checked ? 'flex' : 'none';
+      document.getElementById('preview-ic-light').style.display = outputIcLightCheckbox.checked ? 'flex' : 'none';
+      document.getElementById('preview-ic-dark').style.display = outputIcDarkCheckbox.checked ? 'flex' : 'none';
+    }
 
     // Mode button selection
     modeBtns.forEach(btn => {
@@ -682,12 +760,20 @@
       }
 
       const colors = generateModeColors(hex, selectedMode);
+      const selectedModes = getSelectedOutputModes();
+      
+      if (selectedModes.length === 0) {
+        showMessage(modemakerMessageDiv, 'Please select at least one output mode', 'error');
+        return;
+      }
+      
       parent.postMessage({
         pluginMessage: {
           type: 'generate-mode-colors',
           collectionId,
           varName,
-          colors
+          colors,
+          selectedModes
         }
       }, '*');
     };

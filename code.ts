@@ -1,4 +1,4 @@
-figma.showUI(__html__, { width: 420, height: 640 });
+figma.showUI(__html__, { width: 420, height: 720 });
 
 // Color conversion helpers for Delta E calculation
 function rgbToLab(r: number, g: number, b: number): { L: number; a: number; b: number } {
@@ -819,7 +819,7 @@ figma.ui.onmessage = async (msg) => {
   }
 
   if (msg.type === 'generate-mode-colors') {
-    const { collectionId, varName, colors } = msg;
+    const { collectionId, varName, colors, selectedModes } = msg;
 
     // Get or create collection
     let collection: VariableCollection;
@@ -835,8 +835,8 @@ figma.ui.onmessage = async (msg) => {
       collection = figma.variables.createVariableCollection('Mode Colors');
     }
 
-    // Ensure all 4 modes exist
-    const modeNames = ['Light', 'Dark', 'IC - Light', 'IC - Dark'];
+    // Use selected modes or default to all 4
+    const modeNames = selectedModes || ['Light', 'Dark', 'IC - Light', 'IC - Dark'];
     const modeIds: { [key: string]: string } = {};
 
     for (const modeName of modeNames) {
@@ -886,7 +886,7 @@ figma.ui.onmessage = async (msg) => {
 
     figma.ui.postMessage({ 
       type: 'modemaker-success', 
-      message: isUpdate ? `Updated "${varName}" with 4 modes` : `Created "${varName}" with 4 modes`
+      message: isUpdate ? `Updated "${varName}" with ${modeNames.length} mode${modeNames.length > 1 ? 's' : ''}` : `Created "${varName}" with ${modeNames.length} mode${modeNames.length > 1 ? 's' : ''}`
     });
     
     updateCollections();
