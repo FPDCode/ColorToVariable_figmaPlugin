@@ -499,6 +499,9 @@
           <input type="checkbox" id="output-ic-dark" checked> IC-Dark
         </label>
       </div>
+      <label class="checkbox-label" style="margin-top: 8px;">
+        <input type="checkbox" id="mirror-ic-modes"> Mirror IC modes (use Light/Dark values)
+      </label>
     </div>
 
     <div class="preview-grid" id="preview-grid">
@@ -580,6 +583,12 @@
     const outputIcLightCheckbox = document.getElementById('output-ic-light');
     const outputIcDarkCheckbox = document.getElementById('output-ic-dark');
     const individualOutputCheckboxes = [outputLightCheckbox, outputDarkCheckbox, outputIcLightCheckbox, outputIcDarkCheckbox];
+    const mirrorIcModesCheckbox = document.getElementById('mirror-ic-modes');
+
+    // Mirror IC modes checkbox triggers preview update
+    mirrorIcModesCheckbox.onchange = () => {
+      updateColorPreview();
+    };
 
     // "All" checkbox toggles all others
     outputAllCheckbox.onchange = () => {
@@ -639,13 +648,24 @@
     };
 
     // Calculate opacities for all modes based on input opacity (Apple-style multipliers)
-    function calculateModeOpacities(baseOpacity) {
+    function calculateModeOpacities(baseOpacity, mirrorIc = false) {
       if (baseOpacity === 100) {
         return { Light: 100, Dark: 100, 'IC - Light': 100, 'IC - Dark': 100 };
       }
+      const lightOpacity = baseOpacity;
+      const darkOpacity = Math.min(100, Math.round(baseOpacity * 1.8));
+      
+      if (mirrorIc) {
+        return {
+          Light: lightOpacity,
+          Dark: darkOpacity,
+          'IC - Light': lightOpacity,
+          'IC - Dark': darkOpacity
+        };
+      }
       return {
-        Light: baseOpacity,
-        Dark: Math.min(100, Math.round(baseOpacity * 1.8)),
+        Light: lightOpacity,
+        Dark: darkOpacity,
         'IC - Light': Math.min(100, Math.round(baseOpacity * 1.4)),
         'IC - Dark': Math.min(100, Math.round(baseOpacity * 2.2))
       };
@@ -713,7 +733,7 @@
       return hslToRgb(hsl.h, newS, newL);
     }
 
-    function generateModeColors(inputHex, inputMode, baseOpacity = 100) {
+    function generateModeColors(inputHex, inputMode, baseOpacity = 100, mirrorIc = false) {
       const rgb = hexToRgb(inputHex);
       if (!rgb) return null;
 
@@ -761,14 +781,26 @@
         const lightHsl = rgbToHsl(lightRgb.r, lightRgb.g, lightRgb.b);
         results.Light = lightRgb;
         results.Dark = hslToRgb(lightHsl.h, lightHsl.s, 1 - lightHsl.l);
-        results['IC - Light'] = hslToRgb(lightHsl.h, lightHsl.s, Math.max(0, lightHsl.l - 0.05));
-        const darkL = 1 - lightHsl.l;
-        results['IC - Dark'] = hslToRgb(lightHsl.h, lightHsl.s, Math.min(1, darkL + 0.05));
+        // Mirror IC modes if enabled
+        if (mirrorIc) {
+          results['IC - Light'] = results.Light;
+          results['IC - Dark'] = results.Dark;
+        } else {
+          results['IC - Light'] = hslToRgb(lightHsl.h, lightHsl.s, Math.max(0, lightHsl.l - 0.05));
+          const darkL = 1 - lightHsl.l;
+          results['IC - Dark'] = hslToRgb(lightHsl.h, lightHsl.s, Math.min(1, darkL + 0.05));
+        }
       } else {
         results.Light = lightRgb;
         results.Dark = adjustHsl(lightRgb.r, lightRgb.g, lightRgb.b, 0.03, 0);
-        results['IC - Light'] = adjustHsl(lightRgb.r, lightRgb.g, lightRgb.b, -0.12, 0.08);
-        results['IC - Dark'] = adjustHsl(lightRgb.r, lightRgb.g, lightRgb.b, 0.15, 0);
+        // Mirror IC modes if enabled
+        if (mirrorIc) {
+          results['IC - Light'] = results.Light;
+          results['IC - Dark'] = results.Dark;
+        } else {
+          results['IC - Light'] = adjustHsl(lightRgb.r, lightRgb.g, lightRgb.b, -0.12, 0.08);
+          results['IC - Dark'] = adjustHsl(lightRgb.r, lightRgb.g, lightRgb.b, 0.15, 0);
+        }
       }
 
       return {
@@ -782,11 +814,12 @@
     function updateColorPreview() {
       const hex = hexInput.value;
       const baseOpacity = parseInt(opacityInput.value) || 100;
-      const opacities = calculateModeOpacities(baseOpacity);
+      const mirrorIc = mirrorIcModesCheckbox.checked;
+      const opacities = calculateModeOpacities(baseOpacity, mirrorIc);
       
       if (hex.length === 6) {
         colorPreview.style.background = '#' + hex;
-        const colors = generateModeColors(hex, selectedMode, baseOpacity);
+        const colors = generateModeColors(hex, selectedMode, baseOpacity, mirrorIc);
         if (colors) {
           const previewLight = document.getElementById('preview-light');
           const previewDark = document.getElementById('preview-dark');
@@ -842,6 +875,7 @@
       const varName = varNameInput.value.trim();
       const collectionId = modeCollectionSelect.value || null;
       const baseOpacity = parseInt(opacityInput.value) || 100;
+      const mirrorIc = mirrorIcModesCheckbox.checked;
 
       if (hex.length !== 6) {
         showMessage(modemakerMessageDiv, 'Please enter a valid 6-digit hex code', 'error');
@@ -852,8 +886,8 @@
         return;
       }
 
-      const colors = generateModeColors(hex, selectedMode, baseOpacity);
-      const opacities = calculateModeOpacities(baseOpacity);
+      const colors = generateModeColors(hex, selectedMode, baseOpacity, mirrorIc);
+      const opacities = calculateModeOpacities(baseOpacity, mirrorIc);
       const selectedModes = getSelectedOutputModes();
       
       if (selectedModes.length === 0) {
