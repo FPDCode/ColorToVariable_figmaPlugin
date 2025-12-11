@@ -181,6 +181,25 @@
       font-size: 12px;
       font-family: monospace;
     }
+    .opacity-input {
+      width: 48px;
+      padding: 8px 4px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      font-size: 12px;
+      text-align: center;
+      -moz-appearance: textfield;
+    }
+    .opacity-input::-webkit-outer-spin-button,
+    .opacity-input::-webkit-inner-spin-button {
+      -webkit-appearance: none;
+      margin: 0;
+    }
+    .opacity-suffix {
+      font-size: 12px;
+      color: #666;
+      margin-left: -4px;
+    }
     .text-input {
       width: 100%;
       padding: 8px;
@@ -450,6 +469,8 @@
       <div class="hex-input-row">
         <div id="color-preview" class="color-preview"></div>
         <input type="text" id="hex-input" class="hex-input" placeholder="FF383C" maxlength="7">
+        <input type="number" id="opacity-input" class="opacity-input" value="100" min="1" max="100">
+        <span class="opacity-suffix">%</span>
       </div>
     </div>
 
@@ -544,6 +565,7 @@
     // Mode Maker elements
     const modeCollectionSelect = document.getElementById('mode-collection');
     const hexInput = document.getElementById('hex-input');
+    const opacityInput = document.getElementById('opacity-input');
     const varNameInput = document.getElementById('var-name');
     const colorPreview = document.getElementById('color-preview');
     const generateModesButton = document.getElementById('generate-modes');
@@ -607,6 +629,28 @@
       updateColorPreview();
     };
 
+    // Opacity input handling
+    opacityInput.oninput = () => {
+      let val = parseInt(opacityInput.value) || 100;
+      if (val < 1) val = 1;
+      if (val > 100) val = 100;
+      opacityInput.value = val;
+      updateColorPreview();
+    };
+
+    // Calculate opacities for all modes based on input opacity (Apple-style multipliers)
+    function calculateModeOpacities(baseOpacity) {
+      if (baseOpacity === 100) {
+        return { Light: 100, Dark: 100, 'IC - Light': 100, 'IC - Dark': 100 };
+      }
+      return {
+        Light: baseOpacity,
+        Dark: Math.min(100, Math.round(baseOpacity * 1.8)),
+        'IC - Light': Math.min(100, Math.round(baseOpacity * 1.4)),
+        'IC - Dark': Math.min(100, Math.round(baseOpacity * 2.2))
+      };
+    }
+
     function hexToRgb(hex) {
       if (hex.length !== 6) return null;
       const r = parseInt(hex.substring(0, 2), 16) / 255;
@@ -669,9 +713,20 @@
       return hslToRgb(hsl.h, newS, newL);
     }
 
-    function generateModeColors(inputHex, inputMode) {
+    function generateModeColors(inputHex, inputMode, baseOpacity = 100) {
       const rgb = hexToRgb(inputHex);
       if (!rgb) return null;
+
+      // If opacity is not 100%, return same color for all modes (no color transformation)
+      if (baseOpacity !== 100) {
+        const hex = rgbToHex(rgb.r, rgb.g, rgb.b);
+        return {
+          Light: hex,
+          Dark: hex,
+          'IC - Light': hex,
+          'IC - Dark': hex
+        };
+      }
 
       const grayscale = isGrayscale(rgb.r, rgb.g, rgb.b);
       let lightRgb;
@@ -726,21 +781,58 @@
 
     function updateColorPreview() {
       const hex = hexInput.value;
+      const baseOpacity = parseInt(opacityInput.value) || 100;
+      const opacities = calculateModeOpacities(baseOpacity);
+      
       if (hex.length === 6) {
         colorPreview.style.background = '#' + hex;
-        const colors = generateModeColors(hex, selectedMode);
+        const colors = generateModeColors(hex, selectedMode, baseOpacity);
         if (colors) {
-          document.getElementById('preview-light').style.background = '#' + colors.Light;
-          document.getElementById('preview-dark').style.background = '#' + colors.Dark;
-          document.getElementById('preview-ic-light').style.background = '#' + colors['IC - Light'];
-          document.getElementById('preview-ic-dark').style.background = '#' + colors['IC - Dark'];
+          const previewLight = document.getElementById('preview-light');
+          const previewDark = document.getElementById('preview-dark');
+          const previewIcLight = document.getElementById('preview-ic-light');
+          const previewIcDark = document.getElementById('preview-ic-dark');
+          
+          previewLight.style.background = '#' + colors.Light;
+          previewDark.style.background = '#' + colors.Dark;
+          previewIcLight.style.background = '#' + colors['IC - Light'];
+          previewIcDark.style.background = '#' + colors['IC - Dark'];
+          
+          // Apply opacity to swatches visually
+          previewLight.style.opacity = opacities.Light / 100;
+          previewDark.style.opacity = opacities.Dark / 100;
+          previewIcLight.style.opacity = opacities['IC - Light'] / 100;
+          previewIcDark.style.opacity = opacities['IC - Dark'] / 100;
+          
+          // Update labels to show opacity %
+          previewLight.querySelector('span').textContent = baseOpacity === 100 ? 'Light' : `${opacities.Light}%`;
+          previewDark.querySelector('span').textContent = baseOpacity === 100 ? 'Dark' : `${opacities.Dark}%`;
+          previewIcLight.querySelector('span').textContent = baseOpacity === 100 ? 'IC - L' : `${opacities['IC - Light']}%`;
+          previewIcDark.querySelector('span').textContent = baseOpacity === 100 ? 'IC - D' : `${opacities['IC - Dark']}%`;
         }
       } else {
         colorPreview.style.background = '#fff';
-        document.getElementById('preview-light').style.background = '#ccc';
-        document.getElementById('preview-dark').style.background = '#ccc';
-        document.getElementById('preview-ic-light').style.background = '#ccc';
-        document.getElementById('preview-ic-dark').style.background = '#ccc';
+        const previewLight = document.getElementById('preview-light');
+        const previewDark = document.getElementById('preview-dark');
+        const previewIcLight = document.getElementById('preview-ic-light');
+        const previewIcDark = document.getElementById('preview-ic-dark');
+        
+        previewLight.style.background = '#ccc';
+        previewDark.style.background = '#ccc';
+        previewIcLight.style.background = '#ccc';
+        previewIcDark.style.background = '#ccc';
+        
+        // Reset opacity
+        previewLight.style.opacity = 1;
+        previewDark.style.opacity = 1;
+        previewIcLight.style.opacity = 1;
+        previewIcDark.style.opacity = 1;
+        
+        // Reset labels
+        previewLight.querySelector('span').textContent = 'Light';
+        previewDark.querySelector('span').textContent = 'Dark';
+        previewIcLight.querySelector('span').textContent = 'IC - L';
+        previewIcDark.querySelector('span').textContent = 'IC - D';
       }
     }
 
@@ -749,6 +841,7 @@
       const hex = hexInput.value;
       const varName = varNameInput.value.trim();
       const collectionId = modeCollectionSelect.value || null;
+      const baseOpacity = parseInt(opacityInput.value) || 100;
 
       if (hex.length !== 6) {
         showMessage(modemakerMessageDiv, 'Please enter a valid 6-digit hex code', 'error');
@@ -759,7 +852,8 @@
         return;
       }
 
-      const colors = generateModeColors(hex, selectedMode);
+      const colors = generateModeColors(hex, selectedMode, baseOpacity);
+      const opacities = calculateModeOpacities(baseOpacity);
       const selectedModes = getSelectedOutputModes();
       
       if (selectedModes.length === 0) {
@@ -773,6 +867,7 @@
           collectionId,
           varName,
           colors,
+          opacities,
           selectedModes
         }
       }, '*');

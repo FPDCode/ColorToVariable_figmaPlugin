@@ -819,7 +819,7 @@ figma.ui.onmessage = async (msg) => {
   }
 
   if (msg.type === 'generate-mode-colors') {
-    const { collectionId, varName, colors, selectedModes } = msg;
+    const { collectionId, varName, colors, opacities, selectedModes } = msg;
 
     // Get or create collection
     let collection: VariableCollection;
@@ -854,12 +854,12 @@ figma.ui.onmessage = async (msg) => {
       }
     }
 
-    // Helper: hex to RGBA
-    function hexToRgba(hex: string): RGBA {
+    // Helper: hex to RGBA with opacity
+    function hexToRgba(hex: string, opacity: number = 100): RGBA {
       const r = parseInt(hex.substring(0, 2), 16) / 255;
       const g = parseInt(hex.substring(2, 4), 16) / 255;
       const b = parseInt(hex.substring(4, 6), 16) / 255;
-      return { r, g, b, a: 1 };
+      return { r, g, b, a: opacity / 100 };
     }
 
     // Check if variable already exists
@@ -876,11 +876,12 @@ figma.ui.onmessage = async (msg) => {
       variable = figma.variables.createVariable(varName, collection, 'COLOR');
     }
 
-    // Set values for all 4 modes
+    // Set values for selected modes with appropriate opacity
     for (const modeName of modeNames) {
       const hexColor = colors[modeName];
+      const modeOpacity = opacities ? opacities[modeName] : 100;
       if (hexColor && modeIds[modeName]) {
-        variable.setValueForMode(modeIds[modeName], hexToRgba(hexColor));
+        variable.setValueForMode(modeIds[modeName], hexToRgba(hexColor, modeOpacity));
       }
     }
 
