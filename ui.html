@@ -260,6 +260,79 @@
     input:checked + .slider:before {
       transform: translateX(16px);
     }
+    .suggestions-list {
+      max-height: 320px;
+      overflow-y: auto;
+      margin-top: 12px;
+    }
+    .suggestion-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px;
+      background: #f9f9f9;
+      border-radius: 6px;
+      margin-bottom: 6px;
+      font-size: 11px;
+    }
+    .suggestion-swatch {
+      width: 28px;
+      height: 28px;
+      border-radius: 4px;
+      border: 1px solid #ddd;
+      flex-shrink: 0;
+    }
+    .suggestion-info {
+      flex: 1;
+      min-width: 0;
+    }
+    .suggestion-layer {
+      font-weight: 500;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .suggestion-var {
+      color: #666;
+      font-size: 10px;
+    }
+    .suggestion-delta {
+      color: #999;
+      font-size: 10px;
+    }
+    .suggestion-actions {
+      display: flex;
+      gap: 4px;
+    }
+    .btn-small {
+      padding: 4px 8px;
+      font-size: 10px;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    .btn-accept {
+      background: #18a0fb;
+      color: white;
+    }
+    .btn-accept:hover {
+      background: #0d8ae0;
+    }
+    .btn-skip {
+      background: #e0e0e0;
+      color: #666;
+    }
+    .btn-skip:hover {
+      background: #ccc;
+    }
+    .scan-stats {
+      padding: 8px;
+      background: #e6f4ff;
+      border-radius: 6px;
+      margin-bottom: 12px;
+      font-size: 11px;
+      color: #0d8ae0;
+    }
   </style>
 </head>
 <body>
@@ -268,6 +341,7 @@
     <button class="tab" data-tab="generate">Generate</button>
     <button class="tab" data-tab="interpolate">Interpolate</button>
     <button class="tab" data-tab="modemaker">Modes</button>
+    <button class="tab" data-tab="connect">Connect</button>
   </div>
 
   <!-- Tab 1: Create Variables -->
@@ -377,6 +451,22 @@
     <div id="modemaker-message" class="message"></div>
   </div>
 
+  <!-- Tab 6: Connect Colors -->
+  <div id="connect-tab" class="tab-content">
+    <h3>Auto-Connect Colors</h3>
+    <div class="form-group">
+      <label for="connect-collection">Match Against Collection</label>
+      <select id="connect-collection">
+        <option value="" disabled selected>Select a collection</option>
+      </select>
+      <div class="hint">Select layers or scan entire page. Exact matches auto-connect, close matches (Delta E &lt; 10) shown below.</div>
+    </div>
+    <button id="scan-colors" class="primary" disabled>Scan Colors</button>
+    <div id="connect-message" class="message"></div>
+    <div id="scan-stats" class="scan-stats" style="display:none"></div>
+    <div id="suggestions-list" class="suggestions-list"></div>
+  </div>
+
   <script>
     // Tab switching
     const tabs = document.querySelectorAll('.tab');
@@ -403,6 +493,13 @@
     const interpolateCollectionSelect = document.getElementById('interpolate-collection');
     const interpolateButton = document.getElementById('interpolate');
     const interpolateMessageDiv = document.getElementById('interpolate-message');
+
+    // Connect elements
+    const connectCollectionSelect = document.getElementById('connect-collection');
+    const scanColorsButton = document.getElementById('scan-colors');
+    const connectMessageDiv = document.getElementById('connect-message');
+    const scanStatsDiv = document.getElementById('scan-stats');
+    const suggestionsListDiv = document.getElementById('suggestions-list');
 
     // Mode Maker elements
     const modeCollectionSelect = document.getElementById('mode-collection');
@@ -610,6 +707,84 @@
       generateButton.disabled = !genCollectionSelect.value;
     };
 
+    // Enable/disable scan button based on selection
+    connectCollectionSelect.onchange = () => {
+      scanColorsButton.disabled = !connectCollectionSelect.value;
+    };
+
+    // Scan Colors button
+    scanColorsButton.onclick = () => {
+      const collectionId = connectCollectionSelect.value;
+      if (!collectionId) return;
+      
+      suggestionsListDiv.innerHTML = '';
+      scanStatsDiv.style.display = 'none';
+      
+      parent.postMessage({ 
+        pluginMessage: { 
+          type: 'scan-colors', 
+          collectionId 
+        } 
+      }, '*');
+    };
+
+    // Handle connecting a single suggestion
+    function connectSuggestion(nodeId, property, varId, element) {
+      parent.postMessage({ 
+        pluginMessage: { 
+          type: 'connect-color', 
+          nodeId,
+          property,
+          varId
+        } 
+      }, '*');
+      element.remove();
+      updateSuggestionCount();
+    }
+
+    // Skip a suggestion
+    function skipSuggestion(element) {
+      element.remove();
+      updateSuggestionCount();
+    }
+
+    // Update suggestion count in stats
+    function updateSuggestionCount() {
+      const remaining = suggestionsListDiv.children.length;
+      if (remaining === 0) {
+        scanStatsDiv.textContent = scanStatsDiv.dataset.base + ' | All suggestions handled!';
+      }
+    }
+
+    // Render suggestions list
+    function renderSuggestions(suggestions) {
+      suggestionsListDiv.innerHTML = '';
+      suggestions.forEach(s => {
+        const item = document.createElement('div');
+        item.className = 'suggestion-item';
+        item.innerHTML = `
+          <div class="suggestion-swatch" style="background:rgb(${Math.round(s.color.r*255)},${Math.round(s.color.g*255)},${Math.round(s.color.b*255)})"></div>
+          <div class="suggestion-info">
+            <div class="suggestion-layer">${s.layerName} (${s.property})</div>
+            <div class="suggestion-var">${s.varName}</div>
+            <div class="suggestion-delta">Mode: ${s.modeName} | ΔE: ${s.deltaE.toFixed(1)}</div>
+          </div>
+          <div class="suggestion-actions">
+            <button class="btn-small btn-accept" data-node="${s.nodeId}" data-prop="${s.property}" data-var="${s.varId}">Accept</button>
+            <button class="btn-small btn-skip">Skip</button>
+          </div>
+        `;
+        
+        item.querySelector('.btn-accept').onclick = (e) => {
+          const btn = e.target;
+          connectSuggestion(btn.dataset.node, btn.dataset.prop, btn.dataset.var, item);
+        };
+        item.querySelector('.btn-skip').onclick = () => skipSuggestion(item);
+        
+        suggestionsListDiv.appendChild(item);
+      });
+    }
+
     // Create Variables button
     createButton.onclick = () => {
       const collectionId = collectionSelect.value || null;
@@ -656,6 +831,7 @@
         const currentValue = collectionSelect.value;
         const currentGenValue = genCollectionSelect.value;
         const currentInterpolateValue = interpolateCollectionSelect.value;
+        const currentConnectValue = connectCollectionSelect.value;
         
         // Update create tab dropdown
         collectionSelect.innerHTML = '<option value="">Create new collection</option>';
@@ -693,6 +869,15 @@
           option.textContent = collection.name;
           modeCollectionSelect.appendChild(option);
         });
+
+        // Update connect tab dropdown
+        connectCollectionSelect.innerHTML = '<option value="" disabled>Select a collection</option>';
+        msg.collections.forEach(collection => {
+          const option = document.createElement('option');
+          option.value = collection.id;
+          option.textContent = collection.name;
+          connectCollectionSelect.appendChild(option);
+        });
         
         // Restore selections
         if (currentValue) collectionSelect.value = currentValue;
@@ -702,6 +887,10 @@
         }
         if (currentInterpolateValue) interpolateCollectionSelect.value = currentInterpolateValue;
         if (currentModeValue) modeCollectionSelect.value = currentModeValue;
+        if (currentConnectValue) {
+          connectCollectionSelect.value = currentConnectValue;
+          scanColorsButton.disabled = false;
+        }
       }
       
       if (msg.type === 'success') {
@@ -734,6 +923,31 @@
 
       if (msg.type === 'modemaker-error') {
         showMessage(modemakerMessageDiv, msg.message, 'error');
+      }
+
+      if (msg.type === 'scan-success') {
+        const baseText = `Auto-connected: ${msg.autoConnected} | Suggestions: ${msg.suggestions.length}`;
+        scanStatsDiv.textContent = baseText;
+        scanStatsDiv.dataset.base = baseText;
+        scanStatsDiv.style.display = 'block';
+        renderSuggestions(msg.suggestions);
+        if (msg.autoConnected > 0 || msg.suggestions.length > 0) {
+          showMessage(connectMessageDiv, `Found ${msg.autoConnected + msg.suggestions.length} colors to connect`, 'success');
+        } else {
+          showMessage(connectMessageDiv, 'No unbound colors found', 'success');
+        }
+      }
+
+      if (msg.type === 'scan-error') {
+        showMessage(connectMessageDiv, msg.message, 'error');
+      }
+
+      if (msg.type === 'connect-success') {
+        // Silent success - item already removed from list
+      }
+
+      if (msg.type === 'connect-error') {
+        showMessage(connectMessageDiv, msg.message, 'error');
       }
     };
   </script>

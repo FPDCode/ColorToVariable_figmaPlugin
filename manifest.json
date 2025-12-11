@@ -1,12 +1,14 @@
 {
   "name": "Colorvy",
-  "id": "color-to-variable",
+  "id": "1580537326174766598",
   "api": "1.0.0",
   "main": "code.js",
   "ui": "ui.html",
+  "documentAccess": "dynamic-page",
   "editorType": ["figma"],
   "networkAccess": {
-    "allowedDomains": ["none"]
+    "allowedDomains": ["*"],
+    "reasoning": "Debug logging during development"
   }
 }
 

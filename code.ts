@@ -1,5 +1,45 @@
 figma.showUI(__html__, { width: 420, height: 640 });
 
+// Color conversion helpers for Delta E calculation
+function rgbToLab(r: number, g: number, b: number): { L: number; a: number; b: number } {
+  // Convert RGB to XYZ
+  let rr = r > 0.04045 ? Math.pow((r + 0.055) / 1.055, 2.4) : r / 12.92;
+  let gg = g > 0.04045 ? Math.pow((g + 0.055) / 1.055, 2.4) : g / 12.92;
+  let bb = b > 0.04045 ? Math.pow((b + 0.055) / 1.055, 2.4) : b / 12.92;
+
+  rr *= 100;
+  gg *= 100;
+  bb *= 100;
+
+  const x = rr * 0.4124564 + gg * 0.3575761 + bb * 0.1804375;
+  const y = rr * 0.2126729 + gg * 0.7151522 + bb * 0.0721750;
+  const z = rr * 0.0193339 + gg * 0.1191920 + bb * 0.9503041;
+
+  // Convert XYZ to LAB (D65 illuminant)
+  const xn = 95.047, yn = 100.0, zn = 108.883;
+  
+  const fx = x / xn > 0.008856 ? Math.pow(x / xn, 1/3) : (7.787 * x / xn) + 16/116;
+  const fy = y / yn > 0.008856 ? Math.pow(y / yn, 1/3) : (7.787 * y / yn) + 16/116;
+  const fz = z / zn > 0.008856 ? Math.pow(z / zn, 1/3) : (7.787 * z / zn) + 16/116;
+
+  const L = (116 * fy) - 16;
+  const a = 500 * (fx - fy);
+  const bVal = 200 * (fy - fz);
+
+  return { L, a, b: bVal };
+}
+
+function deltaE(rgb1: RGB, rgb2: RGB): number {
+  const lab1 = rgbToLab(rgb1.r, rgb1.g, rgb1.b);
+  const lab2 = rgbToLab(rgb2.r, rgb2.g, rgb2.b);
+  
+  return Math.sqrt(
+    Math.pow(lab1.L - lab2.L, 2) +
+    Math.pow(lab1.a - lab2.a, 2) +
+    Math.pow(lab1.b - lab2.b, 2)
+  );
+}
+
 // Send collections to UI on load
 async function updateCollections() {
   const collections = await figma.variables.getLocalVariableCollectionsAsync();
@@ -86,7 +126,7 @@ figma.ui.onmessage = async (msg) => {
             createdCount.updated++;
           } else {
             // Create new variable
-            const variable = figma.variables.createVariable(variableName, collection.id, 'COLOR');
+            const variable = figma.variables.createVariable(variableName, collection, 'COLOR');
             variable.setValueForMode(modeId, colorValue);
             createdCount.new++;
           }
@@ -105,6 +145,244 @@ figma.ui.onmessage = async (msg) => {
 
   if (msg.type === 'refresh-collections') {
     updateCollections();
+  }
+
+  if (msg.type === 'scan-colors') {
+    const collections = await figma.variables.getLocalVariableCollectionsAsync();
+    const collection = collections.find(c => c.id === msg.collectionId);
+    
+    if (!collection) {
+      figma.ui.postMessage({ type: 'scan-error', message: 'Collection not found' });
+      return;
+    }
+
+    // Get all color variables from the collection
+    const variables = collection.variableIds
+      .map(id => figma.variables.getVariableById(id))
+      .filter((v): v is Variable => v !== null && v.resolvedType === 'COLOR');
+
+    if (variables.length === 0) {
+      figma.ui.postMessage({ type: 'scan-error', message: 'No color variables in this collection' });
+      return;
+    }
+
+    // Get nodes to scan
+    const selection = figma.currentPage.selection;
+    let nodesToScan: SceneNode[] = [];
+    
+    if (selection.length > 0) {
+      // Scan selected nodes and their children
+      const collectNodes = (node: SceneNode) => {
+        nodesToScan.push(node);
+        if ('children' in node) {
+          for (const child of node.children) {
+            collectNodes(child);
+          }
+        }
+      };
+      for (const node of selection) {
+        collectNodes(node);
+      }
+    } else {
+      // Scan all nodes on the page
+      const collectNodes = (node: SceneNode) => {
+        nodesToScan.push(node);
+        if ('children' in node) {
+          for (const child of node.children) {
+            collectNodes(child);
+          }
+        }
+      };
+      for (const child of figma.currentPage.children) {
+        collectNodes(child);
+      }
+    }
+
+    let autoConnected = 0;
+    const suggestions: Array<{
+      nodeId: string;
+      layerName: string;
+      property: 'fill' | 'stroke';
+      color: RGB;
+      varId: string;
+      varName: string;
+      deltaE: number;
+      modeName: string;
+    }> = [];
+
+    // Build variable color map for ALL modes
+    const varColors: Array<{ variable: Variable; color: RGB; modeName: string }> = [];
+    for (const variable of variables) {
+      for (const mode of collection.modes) {
+        const value = variable.valuesByMode[mode.modeId];
+        if (value && typeof value === 'object' && 'r' in value) {
+          varColors.push({ 
+            variable, 
+            color: { r: value.r, g: value.g, b: value.b },
+            modeName: mode.name
+          });
+        }
+      }
+    }
+
+    for (const node of nodesToScan) {
+      // Check fills
+      if ('fills' in node && Array.isArray(node.fills)) {
+        for (let i = 0; i < node.fills.length; i++) {
+          const fill = node.fills[i];
+          if (fill.type !== 'SOLID') continue;
+          
+          // Skip if already bound to a variable
+          if (fill.boundVariables?.color) continue;
+          
+          const nodeColor: RGB = { r: fill.color.r, g: fill.color.g, b: fill.color.b };
+          
+          // Find best matching variable across all modes
+          let bestMatch: { variable: Variable; dE: number; modeName: string } | null = null;
+          for (const vc of varColors) {
+            const dE = deltaE(nodeColor, vc.color);
+            if (!bestMatch || dE < bestMatch.dE) {
+              bestMatch = { variable: vc.variable, dE, modeName: vc.modeName };
+            }
+          }
+          
+          if (bestMatch) {
+            if (bestMatch.dE < 0.5) {
+              // Exact match - auto-connect
+              const solidFill: SolidPaint = {
+                type: 'SOLID',
+                color: fill.color,
+                opacity: fill.opacity
+              };
+              const boundFill = figma.variables.setBoundVariableForPaint(solidFill, 'color', bestMatch.variable);
+              const newFills = [...node.fills];
+              newFills[i] = boundFill;
+              (node as GeometryMixin).fills = newFills;
+              autoConnected++;
+            } else if (bestMatch.dE < 10) {
+              // Close match - add to suggestions
+              suggestions.push({
+                nodeId: node.id,
+                layerName: node.name,
+                property: 'fill',
+                color: nodeColor,
+                varId: bestMatch.variable.id,
+                varName: bestMatch.variable.name,
+                deltaE: bestMatch.dE,
+                modeName: bestMatch.modeName
+              });
+            }
+          }
+        }
+      }
+
+      // Check strokes
+      if ('strokes' in node && Array.isArray(node.strokes)) {
+        for (let i = 0; i < node.strokes.length; i++) {
+          const stroke = node.strokes[i];
+          if (stroke.type !== 'SOLID') continue;
+          
+          // Skip if already bound to a variable
+          if (stroke.boundVariables?.color) continue;
+          
+          const nodeColor: RGB = { r: stroke.color.r, g: stroke.color.g, b: stroke.color.b };
+          
+          // Find best matching variable across all modes
+          let bestMatch: { variable: Variable; dE: number; modeName: string } | null = null;
+          for (const vc of varColors) {
+            const dE = deltaE(nodeColor, vc.color);
+            if (!bestMatch || dE < bestMatch.dE) {
+              bestMatch = { variable: vc.variable, dE, modeName: vc.modeName };
+            }
+          }
+          
+          if (bestMatch) {
+            if (bestMatch.dE < 0.5) {
+              // Exact match - auto-connect
+              const solidStroke: SolidPaint = {
+                type: 'SOLID',
+                color: stroke.color,
+                opacity: stroke.opacity
+              };
+              const boundStroke = figma.variables.setBoundVariableForPaint(solidStroke, 'color', bestMatch.variable);
+              const newStrokes = [...node.strokes];
+              newStrokes[i] = boundStroke;
+              (node as GeometryMixin).strokes = newStrokes;
+              autoConnected++;
+            } else if (bestMatch.dE < 10) {
+              // Close match - add to suggestions
+              suggestions.push({
+                nodeId: node.id,
+                layerName: node.name,
+                property: 'stroke',
+                color: nodeColor,
+                varId: bestMatch.variable.id,
+                varName: bestMatch.variable.name,
+                deltaE: bestMatch.dE,
+                modeName: bestMatch.modeName
+              });
+            }
+          }
+        }
+      }
+    }
+
+    // Sort suggestions by delta E (closest first)
+    suggestions.sort((a, b) => a.deltaE - b.deltaE);
+
+    figma.ui.postMessage({
+      type: 'scan-success',
+      autoConnected,
+      suggestions
+    });
+  }
+
+  if (msg.type === 'connect-color') {
+    const { nodeId, property, varId } = msg;
+    
+    const node = figma.getNodeById(nodeId) as SceneNode;
+    if (!node) {
+      figma.ui.postMessage({ type: 'connect-error', message: 'Node not found' });
+      return;
+    }
+
+    const variable = figma.variables.getVariableById(varId);
+    if (!variable) {
+      figma.ui.postMessage({ type: 'connect-error', message: 'Variable not found' });
+      return;
+    }
+
+    if (property === 'fill' && 'fills' in node && Array.isArray(node.fills)) {
+      const newFills = node.fills.map((fill, i) => {
+        if (i === 0 && fill.type === 'SOLID') {
+          const solidFill: SolidPaint = {
+            type: 'SOLID',
+            color: fill.color,
+            opacity: fill.opacity
+          };
+          return figma.variables.setBoundVariableForPaint(solidFill, 'color', variable);
+        }
+        return fill;
+      });
+      (node as GeometryMixin).fills = newFills;
+    }
+
+    if (property === 'stroke' && 'strokes' in node && Array.isArray(node.strokes)) {
+      const newStrokes = node.strokes.map((stroke, i) => {
+        if (i === 0 && stroke.type === 'SOLID') {
+          const solidStroke: SolidPaint = {
+            type: 'SOLID',
+            color: stroke.color,
+            opacity: stroke.opacity
+          };
+          return figma.variables.setBoundVariableForPaint(solidStroke, 'color', variable);
+        }
+        return stroke;
+      });
+      (node as GeometryMixin).strokes = newStrokes;
+    }
+
+    figma.ui.postMessage({ type: 'connect-success' });
   }
 
   if (msg.type === 'interpolate-colors') {
@@ -353,7 +631,7 @@ figma.ui.onmessage = async (msg) => {
         existingVar.setValueForMode(modeId, colorValue);
         createdCount.updated++;
       } else {
-        const variable = figma.variables.createVariable(varName, collection.id, 'COLOR');
+        const variable = figma.variables.createVariable(varName, collection, 'COLOR');
         variable.setValueForMode(modeId, colorValue);
         createdCount.new++;
       }
@@ -595,7 +873,7 @@ figma.ui.onmessage = async (msg) => {
     if (variable) {
       isUpdate = true;
     } else {
-      variable = figma.variables.createVariable(varName, collection.id, 'COLOR');
+      variable = figma.variables.createVariable(varName, collection, 'COLOR');
     }
 
     // Set values for all 4 modes
