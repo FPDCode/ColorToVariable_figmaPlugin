@@ -413,6 +413,13 @@
         <span class="slider"></span>
       </label>
     </div>
+    <div class="switch-row">
+      <span class="switch-label">Generate per mode</span>
+      <label class="switch">
+        <input type="checkbox" id="per-mode" checked>
+        <span class="slider"></span>
+      </label>
+    </div>
     <button id="generate" class="primary" disabled>Generate Layers</button>
     <div id="generate-message" class="message"></div>
   </div>
@@ -1013,6 +1020,7 @@
 
     // Generate Layers button
     const bindVariablesCheckbox = document.getElementById('bind-variables');
+    const perModeCheckbox = document.getElementById('per-mode');
     
     generateButton.onclick = () => {
       const collectionId = genCollectionSelect.value;
@@ -1022,7 +1030,8 @@
         pluginMessage: { 
           type: 'generate-layers', 
           collectionId,
-          bindVariables: bindVariablesCheckbox.checked
+          bindVariables: bindVariablesCheckbox.checked,
+          perMode: perModeCheckbox.checked
         } 
       }, '*');
     };

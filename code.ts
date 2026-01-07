@@ -516,15 +516,6 @@ figma.ui.onmessage = async (msg) => {
       return { r, g, b };
     }
 
-    // Helper: boost color saturation and lightness
-    function boostColor(c: RGB, satBoost: number, lightBoost: number): RGB {
-      const hsl = rgbToHsl(c);
-      // satBoost and lightBoost are in percentage points (e.g., 7 = +7%)
-      const newS = Math.min(1, Math.max(0, hsl.s + satBoost / 100));
-      const newL = Math.min(1, Math.max(0, hsl.l + lightBoost / 100));
-      return hslToRgb(hsl.h, newS, newL);
-    }
-
     // Helper: get falloff amount based on steps from key (non-linear)
     function getFalloffAmount(steps: number): number {
       const falloff = [0, 0.30, 0.50, 0.80, 0.90, 0.95];
@@ -573,38 +564,19 @@ figma.ui.onmessage = async (msg) => {
       return { r: 0.5, g: 0.5, b: 0.5 };
     }
 
-    // Helper: get color for Opacity (no brightness changes, uses nearest key color for edges)
-    function getColorForOpacity(keys: KeyColor[], pos: number): RGB {
+    // Helper: get the 500 key color (or nearest to 500) for Opacity scale
+    function get500KeyColor(keys: KeyColor[]): RGB {
       if (keys.length === 0) {
         return { r: 0.5, g: 0.5, b: 0.5 };
       }
-
-      let lowerKey: KeyColor | null = null;
-      let upperKey: KeyColor | null = null;
-
-      for (const key of keys) {
-        if (key.position <= pos) lowerKey = key;
-        if (key.position >= pos && !upperKey) upperKey = key;
-      }
-
-      // Use nearest key color for edges (no lighten/darken)
-      if (!lowerKey && upperKey) {
-        return upperKey.color;
-      }
-
-      if (!upperKey && lowerKey) {
-        return lowerKey.color;
-      }
-
-      if (lowerKey && upperKey) {
-        if (lowerKey.position === upperKey.position) {
-          return lowerKey.color;
-        }
-        const t = (pos - lowerKey.position) / (upperKey.position - lowerKey.position);
-        return lerpColor(lowerKey.color, upperKey.color, t);
-      }
-
-      return { r: 0.5, g: 0.5, b: 0.5 };
+      
+      // Find exact 500 key or closest to 500
+      const key500 = keys.find(k => k.position === 500) 
+        || keys.reduce((prev, curr) => 
+            Math.abs(curr.position - 500) < Math.abs(prev.position - 500) ? curr : prev
+          );
+      
+      return key500.color;
     }
 
     const createdCount = { new: 0, updated: 0 };
@@ -645,6 +617,8 @@ figma.ui.onmessage = async (msg) => {
 
       // Generate Light scale: 000-500
       const lightPositions = [0, 100, 200, 300, 400, 500];
+      const light500Color = get500KeyColor(lightKeys); // Single color for all Opacity positions
+      
       for (const pos of lightPositions) {
         const posStr = pos.toString().padStart(3, '0');
         const posSuffix = pos === 500 ? `${posStr} (Light)` : posStr;
@@ -654,35 +628,27 @@ figma.ui.onmessage = async (msg) => {
         const opaqueVarName = `${groupName}/Opaque/${posSuffix}`;
         createOrUpdateVariable(opaqueVarName, { r: opaqueColor.r, g: opaqueColor.g, b: opaqueColor.b, a: 1 });
 
-        // Opacity: key color (no lightening), alpha based on distance from 500
-        const opacityColor = getColorForOpacity(lightKeys, pos);
+        // Opacity: uses 500 color with alpha based on position
         const opacityVarName = `${groupName}/Opacity/${posSuffix}`;
-        createOrUpdateVariable(opacityVarName, { r: opacityColor.r, g: opacityColor.g, b: opacityColor.b, a: getAlphaForPosition(pos) });
+        createOrUpdateVariable(opacityVarName, { r: light500Color.r, g: light500Color.g, b: light500Color.b, a: getAlphaForPosition(pos) });
       }
 
       // Generate Dark scale: 500-1000
-      // For Opacity, boost the 700 key color (+7 sat, +2 light)
-      const darkKeysForOpacity = darkKeys.map(k => {
-        if (k.position === 700) {
-          return { ...k, color: boostColor(k.color, 7, 2) };
-        }
-        return k;
-      });
-
       const darkPositions = [500, 600, 700, 800, 900, 1000];
+      const dark500Color = get500KeyColor(darkKeys); // Single color for all Opacity positions
+      
       for (const pos of darkPositions) {
         const posStr = pos.toString().padStart(3, '0');
         const posSuffix = pos === 500 ? `${posStr} (Dark)` : posStr;
         
-        // Opaque: blended color, alpha = 1 (uses original keys)
+        // Opaque: blended color, alpha = 1
         const opaqueColor = getColorAtPosition(darkKeys, pos, 500, 1000, false);
         const opaqueVarName = `${groupName}/Opaque/${posSuffix}`;
         createOrUpdateVariable(opaqueVarName, { r: opaqueColor.r, g: opaqueColor.g, b: opaqueColor.b, a: 1 });
 
-        // Opacity: uses boosted 700 key for better visibility
-        const opacityColor = getColorForOpacity(darkKeysForOpacity, pos);
+        // Opacity: uses 500 Dark color with alpha based on position
         const opacityVarName = `${groupName}/Opacity/${posSuffix}`;
-        createOrUpdateVariable(opacityVarName, { r: opacityColor.r, g: opacityColor.g, b: opacityColor.b, a: getAlphaForPosition(pos) });
+        createOrUpdateVariable(opacityVarName, { r: dark500Color.r, g: dark500Color.g, b: dark500Color.b, a: getAlphaForPosition(pos) });
       }
     }
 
@@ -750,19 +716,67 @@ figma.ui.onmessage = async (msg) => {
       groupFrame.counterAxisSizingMode = 'AUTO';
       groupFrame.fills = [];
 
-      // Create a frame for each mode within this group
-      for (const mode of collection.modes) {
-        const modeFrame = figma.createFrame();
-        modeFrame.name = mode.name;
-        modeFrame.layoutMode = 'VERTICAL';
-        modeFrame.itemSpacing = 8;
-        modeFrame.primaryAxisSizingMode = 'AUTO';
-        modeFrame.counterAxisSizingMode = 'AUTO';
-        modeFrame.fills = [];
+      if (msg.perMode) {
+        // Create a frame for each mode within this group
+        for (const mode of collection.modes) {
+          const modeFrame = figma.createFrame();
+          modeFrame.name = mode.name;
+          modeFrame.layoutMode = 'VERTICAL';
+          modeFrame.itemSpacing = 8;
+          modeFrame.primaryAxisSizingMode = 'AUTO';
+          modeFrame.counterAxisSizingMode = 'AUTO';
+          modeFrame.fills = [];
 
-        // Add rectangles for each variable in this mode
+          // Add rectangles for each variable in this mode
+          for (const variable of groupVariables) {
+            const value = variable.valuesByMode[mode.modeId];
+            
+            // Skip if not a color value or is an alias
+            if (!value || typeof value !== 'object' || !('r' in value)) continue;
+
+            const colorValue = value as RGBA;
+            
+            // Create rectangle
+            const rect = figma.createRectangle();
+            rect.resize(200, 200);
+            
+            // Name with convention: "variableName -modeName"
+            rect.name = `${variable.name} -${mode.name}`;
+            
+            if (msg.bindVariables) {
+              // Bind variable to fill
+              const solidFill: SolidPaint = {
+                type: 'SOLID',
+                color: { r: colorValue.r, g: colorValue.g, b: colorValue.b },
+                opacity: colorValue.a !== undefined ? colorValue.a : 1
+              };
+              const boundFill = figma.variables.setBoundVariableForPaint(solidFill, 'color', variable);
+              rect.fills = [boundFill];
+            } else {
+              // Apply color (not connected to variable)
+              rect.fills = [{
+                type: 'SOLID',
+                color: { r: colorValue.r, g: colorValue.g, b: colorValue.b },
+                opacity: colorValue.a !== undefined ? colorValue.a : 1
+              }];
+            }
+
+            modeFrame.appendChild(rect);
+            layerCount++;
+          }
+
+          groupFrame.appendChild(modeFrame);
+        }
+      } else {
+        // Single mode: use first mode, no nested mode frames
+        const modeId = collection.modes[0].modeId;
+        
+        // Change group layout to vertical for flat list
+        groupFrame.layoutMode = 'VERTICAL';
+        groupFrame.itemSpacing = 8;
+
         for (const variable of groupVariables) {
-          const value = variable.valuesByMode[mode.modeId];
+          const value = variable.valuesByMode[modeId];
           
           // Skip if not a color value or is an alias
           if (!value || typeof value !== 'object' || !('r' in value)) continue;
@@ -773,8 +787,8 @@ figma.ui.onmessage = async (msg) => {
           const rect = figma.createRectangle();
           rect.resize(200, 200);
           
-          // Name with convention: "variableName -modeName"
-          rect.name = `${variable.name} -${mode.name}`;
+          // Name without mode suffix
+          rect.name = variable.name;
           
           if (msg.bindVariables) {
             // Bind variable to fill
@@ -794,11 +808,9 @@ figma.ui.onmessage = async (msg) => {
             }];
           }
 
-          modeFrame.appendChild(rect);
+          groupFrame.appendChild(rect);
           layerCount++;
         }
-
-        groupFrame.appendChild(modeFrame);
       }
 
       containerFrame.appendChild(groupFrame);
