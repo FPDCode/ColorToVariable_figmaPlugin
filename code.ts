@@ -768,12 +768,30 @@ figma.ui.onmessage = async (msg) => {
           groupFrame.appendChild(modeFrame);
         }
       } else {
-        // Single mode: use first mode, no nested mode frames
+        // Single mode: use first mode with header + horizontal rects
         const modeId = collection.modes[0].modeId;
         
-        // Change group layout to vertical for flat list
+        // Group frame is vertical to stack header above rects
         groupFrame.layoutMode = 'VERTICAL';
-        groupFrame.itemSpacing = 8;
+        groupFrame.itemSpacing = 12;
+
+        // Add header text with group name
+        await figma.loadFontAsync({ family: "Inter", style: "Semi Bold" });
+        const header = figma.createText();
+        header.fontName = { family: "Inter", style: "Semi Bold" };
+        header.characters = groupName;
+        header.fontSize = 14;
+        header.fills = [{ type: 'SOLID', color: { r: 0.2, g: 0.2, b: 0.2 } }];
+        groupFrame.appendChild(header);
+
+        // Create horizontal container for rects
+        const rectsFrame = figma.createFrame();
+        rectsFrame.name = 'Swatches';
+        rectsFrame.layoutMode = 'HORIZONTAL';
+        rectsFrame.itemSpacing = 8;
+        rectsFrame.primaryAxisSizingMode = 'AUTO';
+        rectsFrame.counterAxisSizingMode = 'AUTO';
+        rectsFrame.fills = [];
 
         for (const variable of groupVariables) {
           const value = variable.valuesByMode[modeId];
@@ -808,9 +826,11 @@ figma.ui.onmessage = async (msg) => {
             }];
           }
 
-          groupFrame.appendChild(rect);
+          rectsFrame.appendChild(rect);
           layerCount++;
         }
+
+        groupFrame.appendChild(rectsFrame);
       }
 
       containerFrame.appendChild(groupFrame);
