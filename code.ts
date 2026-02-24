@@ -232,12 +232,38 @@ figma.ui.onmessage = async (msg) => {
           const fill = node.fills[i];
           if (fill.type !== 'SOLID') continue;
           
-          // Skip if already bound to a variable
-          if (fill.boundVariables?.color) continue;
+          // Skip if already bound to a variable (unless override is enabled)
+          if (fill.boundVariables?.color && !msg.overrideExisting) continue;
+          
+          // If override is enabled and there's an existing bound variable, try to match by name first
+          if (msg.overrideExisting && fill.boundVariables?.color) {
+            const existingVarId = fill.boundVariables.color.id;
+            const existingVar = await figma.variables.getVariableByIdAsync(existingVarId);
+            
+            if (existingVar) {
+              const nameMatch = variables.find(v => v.name === existingVar.name);
+              
+              if (nameMatch) {
+                // Found a name match - rebind to it
+                const solidFill: SolidPaint = {
+                  type: 'SOLID',
+                  color: fill.color,
+                  opacity: fill.opacity
+                };
+                const boundFill = figma.variables.setBoundVariableForPaint(solidFill, 'color', nameMatch);
+                const newFills = [...node.fills];
+                newFills[i] = boundFill;
+                (node as GeometryMixin).fills = newFills;
+                autoConnected++;
+                continue;
+              }
+              // No name match found - fall through to Delta E matching
+            }
+          }
           
           const nodeColor: RGB = { r: fill.color.r, g: fill.color.g, b: fill.color.b };
           
-          // Find best matching variable across all modes
+          // Find best matching variable across all modes (Delta E color matching)
           let bestMatch: { variable: Variable; dE: number; modeName: string } | null = null;
           for (const vc of varColors) {
             const dE = deltaE(nodeColor, vc.color);
@@ -245,7 +271,7 @@ figma.ui.onmessage = async (msg) => {
               bestMatch = { variable: vc.variable, dE, modeName: vc.modeName };
             }
           }
-          
+
           if (bestMatch) {
             if (bestMatch.dE < 0.5) {
               // Exact match - auto-connect
@@ -282,12 +308,39 @@ figma.ui.onmessage = async (msg) => {
           const stroke = node.strokes[i];
           if (stroke.type !== 'SOLID') continue;
           
-          // Skip if already bound to a variable
-          if (stroke.boundVariables?.color) continue;
+          // Skip if already bound to a variable (unless override is enabled)
+          if (stroke.boundVariables?.color && !msg.overrideExisting) continue;
+          
+          // If override is enabled and there's an existing bound variable, try to match by name first
+          if (msg.overrideExisting && stroke.boundVariables?.color) {
+            const existingVarId = stroke.boundVariables.color.id;
+            const existingVar = await figma.variables.getVariableByIdAsync(existingVarId);
+            
+            if (existingVar) {
+              // Look for a variable with the same name in the selected collection
+              const nameMatch = variables.find(v => v.name === existingVar.name);
+              
+              if (nameMatch) {
+                // Found a name match - rebind to it
+                const solidStroke: SolidPaint = {
+                  type: 'SOLID',
+                  color: stroke.color,
+                  opacity: stroke.opacity
+                };
+                const boundStroke = figma.variables.setBoundVariableForPaint(solidStroke, 'color', nameMatch);
+                const newStrokes = [...node.strokes];
+                newStrokes[i] = boundStroke;
+                (node as GeometryMixin).strokes = newStrokes;
+                autoConnected++;
+                continue; // Move to next stroke
+              }
+              // No name match found - fall through to Delta E matching
+            }
+          }
           
           const nodeColor: RGB = { r: stroke.color.r, g: stroke.color.g, b: stroke.color.b };
           
-          // Find best matching variable across all modes
+          // Find best matching variable across all modes (Delta E color matching)
           let bestMatch: { variable: Variable; dE: number; modeName: string } | null = null;
           for (const vc of varColors) {
             const dE = deltaE(nodeColor, vc.color);

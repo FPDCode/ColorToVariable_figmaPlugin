@@ -532,6 +532,14 @@
       </select>
       <div class="hint">Select layers or scan entire page. Exact matches auto-connect, close matches (Delta E &lt; 10) shown below.</div>
     </div>
+    <div class="switch-row">
+      <span class="switch-label">Override existing variables</span>
+      <label class="switch">
+        <input type="checkbox" id="override-variables">
+        <span class="slider"></span>
+      </label>
+    </div>
+    <div class="hint">When ON, replaces existing variable bindings with local matches</div>
     <button id="scan-colors" class="primary" disabled>Scan Colors</button>
     <div id="connect-message" class="message"></div>
     <div id="scan-stats" class="scan-stats" style="display:none"></div>
@@ -728,86 +736,110 @@
       return { r, g, b };
     }
 
-    function isGrayscale(r, g, b) {
-      const hsl = rgbToHsl(r, g, b);
-      return hsl.s < 0.05;
+    function smoothstep(edge0, edge1, x) {
+      const t = Math.max(0, Math.min(1, (x - edge0) / (edge1 - edge0)));
+      return t * t * (3 - 2 * t);
     }
 
-    function adjustHsl(r, g, b, lDelta, sDelta) {
-      const hsl = rgbToHsl(r, g, b);
-      const newL = Math.max(0, Math.min(1, hsl.l + lDelta));
-      const newS = Math.max(0, Math.min(1, hsl.s + sDelta));
-      return hslToRgb(hsl.h, newS, newL);
+    function computeOppositeL(inputL, fromDark) {
+      const inverted = Math.max(0.05, Math.min(0.95, 1 - inputL * 0.85));
+      if (fromDark) {
+        const shifted = Math.max(0.05, inputL - 0.15);
+        const t = smoothstep(0.3, 0.6, inputL);
+        return inverted * (1 - t) + shifted * t;
+      } else {
+        const shifted = Math.min(0.95, inputL + 0.15);
+        const t = smoothstep(0.4, 0.7, inputL);
+        return shifted * (1 - t) + inverted * t;
+      }
+    }
+
+    function computeSaturationDelta(inputL, fromDark) {
+      const accentDelta = fromDark ? 0.05 : -0.05;
+      const t = fromDark ? smoothstep(0.3, 0.6, inputL) : smoothstep(0.4, 0.7, inputL);
+      return accentDelta * t;
+    }
+
+    function computeHueShift(h, fromDark) {
+      const deg = h * 360;
+      const direction = fromDark ? -1 : 1;
+      if (deg < 60 || deg > 300) return direction * (2 / 360);
+      if (deg > 180 && deg < 240) return direction * (-2 / 360);
+      return 0;
     }
 
     function generateModeColors(inputHex, inputMode, baseOpacity = 100, mirrorIc = false) {
       const rgb = hexToRgb(inputHex);
       if (!rgb) return null;
 
-      // If opacity is not 100%, return same color for all modes (no color transformation)
       if (baseOpacity !== 100) {
         const hex = rgbToHex(rgb.r, rgb.g, rgb.b);
-        return {
-          Light: hex,
-          Dark: hex,
-          'IC - Light': hex,
-          'IC - Dark': hex
+        return { Light: hex, Dark: hex, 'IC - Light': hex, 'IC - Dark': hex };
+      }
+
+      const inputHsl = rgbToHsl(rgb.r, rgb.g, rgb.b);
+      const IC_SHIFT = 0.05;
+      let lightHsl, darkHsl;
+
+      if (inputMode === 'Light' || inputMode === 'IC - Light') {
+        const baseHsl = inputMode === 'IC - Light'
+          ? { h: inputHsl.h, s: inputHsl.s, l: Math.min(1, inputHsl.l + IC_SHIFT) }
+          : { h: inputHsl.h, s: inputHsl.s, l: inputHsl.l };
+
+        lightHsl = { h: baseHsl.h, s: baseHsl.s, l: baseHsl.l };
+
+        const oppositeL = computeOppositeL(baseHsl.l, false);
+        const sDelta = computeSaturationDelta(baseHsl.l, false);
+        const hShift = computeHueShift(baseHsl.h, false);
+
+        darkHsl = {
+          h: ((baseHsl.h + hShift) % 1 + 1) % 1,
+          s: Math.max(0, Math.min(1, baseHsl.s + sDelta)),
+          l: oppositeL
+        };
+      } else {
+        const baseHsl = inputMode === 'IC - Dark'
+          ? { h: inputHsl.h, s: inputHsl.s, l: Math.max(0, inputHsl.l - IC_SHIFT) }
+          : { h: inputHsl.h, s: inputHsl.s, l: inputHsl.l };
+
+        darkHsl = { h: baseHsl.h, s: baseHsl.s, l: baseHsl.l };
+
+        const oppositeL = computeOppositeL(baseHsl.l, true);
+        const sDelta = computeSaturationDelta(baseHsl.l, true);
+        const hShift = computeHueShift(baseHsl.h, true);
+
+        lightHsl = {
+          h: ((baseHsl.h + hShift) % 1 + 1) % 1,
+          s: Math.max(0, Math.min(1, baseHsl.s + sDelta)),
+          l: oppositeL
         };
       }
 
-      const grayscale = isGrayscale(rgb.r, rgb.g, rgb.b);
-      let lightRgb;
-
-      // First, convert input to Light base
-      if (inputMode === 'Light') {
-        lightRgb = rgb;
-      } else if (grayscale) {
-        // Grayscale reverse transformations
-        const hsl = rgbToHsl(rgb.r, rgb.g, rgb.b);
-        if (inputMode === 'Dark') {
-          lightRgb = hslToRgb(hsl.h, hsl.s, 1 - hsl.l); // Invert
-        } else if (inputMode === 'IC - Light') {
-          lightRgb = hslToRgb(hsl.h, hsl.s, hsl.l + 0.05); // Reverse darken
-        } else { // IC - Dark
-          lightRgb = hslToRgb(hsl.h, hsl.s, 1 - (hsl.l - 0.05)); // Reverse lighten + invert
-        }
-      } else {
-        // Chromatic reverse transformations
-        if (inputMode === 'Dark') {
-          lightRgb = adjustHsl(rgb.r, rgb.g, rgb.b, -0.03, 0);
-        } else if (inputMode === 'IC - Light') {
-          lightRgb = adjustHsl(rgb.r, rgb.g, rgb.b, 0.12, -0.08);
-        } else { // IC - Dark
-          lightRgb = adjustHsl(rgb.r, rgb.g, rgb.b, -0.15, 0);
-        }
-      }
-
-      // Generate all 4 modes from Light base
       let results = {};
-      if (grayscale) {
-        const lightHsl = rgbToHsl(lightRgb.r, lightRgb.g, lightRgb.b);
-        results.Light = lightRgb;
-        results.Dark = hslToRgb(lightHsl.h, lightHsl.s, 1 - lightHsl.l);
-        // Mirror IC modes if enabled
-        if (mirrorIc) {
-          results['IC - Light'] = results.Light;
-          results['IC - Dark'] = results.Dark;
-        } else {
-          results['IC - Light'] = hslToRgb(lightHsl.h, lightHsl.s, Math.max(0, lightHsl.l - 0.05));
-          const darkL = 1 - lightHsl.l;
-          results['IC - Dark'] = hslToRgb(lightHsl.h, lightHsl.s, Math.min(1, darkL + 0.05));
-        }
-      } else {
-        results.Light = lightRgb;
-        results.Dark = adjustHsl(lightRgb.r, lightRgb.g, lightRgb.b, 0.03, 0);
-        // Mirror IC modes if enabled
-        if (mirrorIc) {
-          results['IC - Light'] = results.Light;
-          results['IC - Dark'] = results.Dark;
-        } else {
-          results['IC - Light'] = adjustHsl(lightRgb.r, lightRgb.g, lightRgb.b, -0.12, 0.08);
-          results['IC - Dark'] = adjustHsl(lightRgb.r, lightRgb.g, lightRgb.b, 0.15, 0);
-        }
+
+      results.Light = hslToRgb(lightHsl.h, lightHsl.s, lightHsl.l);
+      results.Dark = hslToRgb(darkHsl.h, darkHsl.s, darkHsl.l);
+
+      if (inputMode === 'Light') results.Light = rgb;
+      if (inputMode === 'Dark') results.Dark = rgb;
+
+      results['IC - Light'] = hslToRgb(
+        lightHsl.h,
+        Math.max(0, Math.min(1, lightHsl.s + 0.03)),
+        Math.max(0, lightHsl.l - IC_SHIFT)
+      );
+      results['IC - Dark'] = hslToRgb(
+        darkHsl.h,
+        darkHsl.s,
+        Math.min(1, darkHsl.l + IC_SHIFT)
+      );
+
+      if (inputMode === 'IC - Light') results['IC - Light'] = rgb;
+      if (inputMode === 'IC - Dark') results['IC - Dark'] = rgb;
+
+      if (mirrorIc) {
+        results['IC - Light'] = results.Light;
+        results['IC - Dark'] = results.Dark;
       }
 
       return {
@@ -945,7 +977,8 @@
       parent.postMessage({ 
         pluginMessage: { 
           type: 'scan-colors', 
-          collectionId 
+          collectionId,
+          overrideExisting: document.getElementById('override-variables').checked
         } 
       }, '*');
     };
