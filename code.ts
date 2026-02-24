@@ -977,5 +977,111 @@ figma.ui.onmessage = async (msg) => {
     
     updateCollections();
   }
+
+  if (msg.type === 'get-selection-fills') {
+    const selection = figma.currentPage.selection;
+    if (selection.length === 0) {
+      figma.ui.postMessage({ type: 'modemaker-error', message: 'Please select at least one layer' });
+      return;
+    }
+    const fills: Array<{ name: string; hex: string; opacity: number }> = [];
+    for (const node of selection) {
+      if ('fills' in node && Array.isArray(node.fills) && node.fills.length > 0) {
+        const fill = node.fills[0];
+        if (fill.type === 'SOLID') {
+          const r = Math.round(fill.color.r * 255).toString(16).padStart(2, '0').toUpperCase();
+          const g = Math.round(fill.color.g * 255).toString(16).padStart(2, '0').toUpperCase();
+          const b = Math.round(fill.color.b * 255).toString(16).padStart(2, '0').toUpperCase();
+          fills.push({
+            name: node.name,
+            hex: r + g + b,
+            opacity: Math.round((fill.opacity !== undefined ? fill.opacity : 1) * 100)
+          });
+        }
+      }
+    }
+    if (fills.length === 0) {
+      figma.ui.postMessage({ type: 'modemaker-error', message: 'No layers with solid fills found in selection' });
+      return;
+    }
+    figma.ui.postMessage({ type: 'selection-fills', fills });
+  }
+
+  if (msg.type === 'generate-bulk-mode-colors') {
+    const { collectionId, entries, selectedModes } = msg;
+
+    let collection: VariableCollection;
+    const collections = await figma.variables.getLocalVariableCollectionsAsync();
+
+    if (collectionId) {
+      collection = collections.find(c => c.id === collectionId)!;
+      if (!collection) {
+        figma.ui.postMessage({ type: 'modemaker-error', message: 'Collection not found' });
+        return;
+      }
+    } else {
+      collection = figma.variables.createVariableCollection('Mode Colors');
+    }
+
+    const modeNames: string[] = selectedModes || ['Light', 'Dark', 'IC - Light', 'IC - Dark'];
+    const modeIds: { [key: string]: string } = {};
+
+    for (const modeName of modeNames) {
+      const existingMode = collection.modes.find(m => m.name === modeName);
+      if (existingMode) {
+        modeIds[modeName] = existingMode.modeId;
+      } else {
+        if (collection.modes.length === 1 && collection.modes[0].name === 'Mode 1') {
+          collection.renameMode(collection.modes[0].modeId, modeName);
+          modeIds[modeName] = collection.modes[0].modeId;
+        } else {
+          modeIds[modeName] = collection.addMode(modeName);
+        }
+      }
+    }
+
+    function hexToRgba(hex: string, opacity: number = 100): RGBA {
+      const r = parseInt(hex.substring(0, 2), 16) / 255;
+      const g = parseInt(hex.substring(2, 4), 16) / 255;
+      const b = parseInt(hex.substring(4, 6), 16) / 255;
+      return { r, g, b, a: opacity / 100 };
+    }
+
+    const existingVariables = (await Promise.all(
+      collection.variableIds.map(id => figma.variables.getVariableByIdAsync(id))
+    )).filter((v): v is Variable => v !== null);
+
+    let created = 0;
+    let updated = 0;
+
+    for (const entry of entries) {
+      const { varName, colors, opacities } = entry;
+      if (!colors) continue;
+
+      let variable = existingVariables.find(v => v.name === varName);
+      if (variable) {
+        updated++;
+      } else {
+        variable = figma.variables.createVariable(varName, collection, 'COLOR');
+        existingVariables.push(variable);
+        created++;
+      }
+
+      for (const modeName of modeNames) {
+        const hexColor = colors[modeName];
+        const modeOpacity = opacities ? opacities[modeName] : 100;
+        if (hexColor && modeIds[modeName]) {
+          variable.setValueForMode(modeIds[modeName], hexToRgba(hexColor, modeOpacity));
+        }
+      }
+    }
+
+    figma.ui.postMessage({
+      type: 'modemaker-success',
+      message: `Bulk: created ${created}, updated ${updated} variables with ${modeNames.length} mode${modeNames.length > 1 ? 's' : ''}`
+    });
+
+    updateCollections();
+  }
 };
 
