@@ -52,6 +52,10 @@ updateCollections();
 figma.ui.onmessage = async (msg) => {
   if (msg.type === 'generate-spectrum') {
     const { collectionId, entries } = msg;
+    const tintLightness: number = msg.tintLightness ?? 50;
+    const tintSaturation: number = msg.tintSaturation ?? 50;
+    const shadeLightness: number = msg.shadeLightness ?? 50;
+    const shadeSaturation: number = msg.shadeSaturation ?? 50;
 
     let collection: VariableCollection;
     const collections = await figma.variables.getLocalVariableCollectionsAsync();
@@ -130,17 +134,23 @@ figma.ui.onmessage = async (msg) => {
     }
 
     function lightenColor(c: RGB, amount: number): RGB {
+      if (amount === 0) return c;
       const hsl = rgbToHsl(c);
-      const newL = hsl.l + (1 - hsl.l) * amount;
-      const newS = hsl.s * (1 - amount * 0.5);
+      const lightDampen = 1.0 - (tintLightness / 100) * 0.7;
+      const satDecay = 1.0 * (1 - tintSaturation / 100);
+      const newL = hsl.l + (1 - hsl.l) * amount * lightDampen;
+      const newS = hsl.s * (1 - amount * satDecay);
       return hslToRgb(hsl.h, Math.max(0, newS), Math.min(1, newL));
     }
 
     function darkenColor(c: RGB, amount: number): RGB {
+      if (amount === 0) return c;
       const hsl = rgbToHsl(c);
-      const newL = hsl.l * (1 - amount);
-      const newS = hsl.s;
-      return hslToRgb(hsl.h, newS, Math.max(0, newL));
+      const darkDampen = 1.0 - (shadeLightness / 100) * 0.7;
+      const satDecay = 1.0 * (1 - shadeSaturation / 100);
+      const newL = hsl.l * (1 - amount * darkDampen);
+      const newS = hsl.s * (1 - amount * satDecay);
+      return hslToRgb(hsl.h, Math.max(0, newS), Math.max(0, newL));
     }
 
     function getFalloffAmount(steps: number): number {

@@ -371,6 +371,37 @@
       font-size: 11px;
       color: #0d8ae0;
     }
+    input[type="range"] {
+      -webkit-appearance: none;
+      width: 100%;
+      height: 4px;
+      border-radius: 2px;
+      background: #e0e0e0;
+      outline: none;
+    }
+    input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      background: #18a0fb;
+      cursor: pointer;
+    }
+    .slider-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .slider-row input[type="range"] {
+      flex: 1;
+    }
+    .slider-value {
+      min-width: 32px;
+      text-align: right;
+      font-size: 11px;
+      font-weight: 500;
+      color: #666;
+    }
   </style>
 </head>
 <body>
@@ -411,6 +442,36 @@
           <div class="mode-icon ic-dark"></div>
           <span>IC - Dark</span>
         </button>
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label>Tint Lightness (000–400)</label>
+      <div class="slider-row">
+        <input type="range" id="tint-lightness" min="0" max="100" value="50">
+        <span class="slider-value" id="tint-lightness-value">50%</span>
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Tint Saturation (000–400)</label>
+      <div class="slider-row">
+        <input type="range" id="tint-saturation" min="0" max="100" value="50">
+        <span class="slider-value" id="tint-saturation-value">50%</span>
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label>Shade Lightness (600–1000)</label>
+      <div class="slider-row">
+        <input type="range" id="shade-lightness" min="0" max="100" value="50">
+        <span class="slider-value" id="shade-lightness-value">50%</span>
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Shade Saturation (600–1000)</label>
+      <div class="slider-row">
+        <input type="range" id="shade-saturation" min="0" max="100" value="50">
+        <span class="slider-value" id="shade-saturation-value">50%</span>
       </div>
     </div>
 
@@ -588,6 +649,14 @@
     const spectrumGenerateButton = document.getElementById('spectrum-generate');
     const spectrumMessageDiv = document.getElementById('spectrum-message');
     const spectrumModeBtns = document.querySelectorAll('#spectrum-mode-selector .mode-btn');
+    const tintLightnessSlider = document.getElementById('tint-lightness');
+    const tintLightnessValue = document.getElementById('tint-lightness-value');
+    const tintSaturationSlider = document.getElementById('tint-saturation');
+    const tintSaturationValue = document.getElementById('tint-saturation-value');
+    const shadeLightnessSlider = document.getElementById('shade-lightness');
+    const shadeLightnessValue = document.getElementById('shade-lightness-value');
+    const shadeSaturationSlider = document.getElementById('shade-saturation');
+    const shadeSaturationValue = document.getElementById('shade-saturation-value');
     let spectrumSelectedMode = 'Light';
     let pendingSpectrumRequest = false;
 
@@ -598,6 +667,19 @@
         spectrumSelectedMode = btn.dataset.mode;
       };
     });
+
+    tintLightnessSlider.oninput = () => {
+      tintLightnessValue.textContent = tintLightnessSlider.value + '%';
+    };
+    tintSaturationSlider.oninput = () => {
+      tintSaturationValue.textContent = tintSaturationSlider.value + '%';
+    };
+    shadeLightnessSlider.oninput = () => {
+      shadeLightnessValue.textContent = shadeLightnessSlider.value + '%';
+    };
+    shadeSaturationSlider.oninput = () => {
+      shadeSaturationValue.textContent = shadeSaturationSlider.value + '%';
+    };
     
     const genCollectionSelect = document.getElementById('gen-collection');
     const generateButton = document.getElementById('generate');
@@ -1204,7 +1286,11 @@
             pluginMessage: {
               type: 'generate-spectrum',
               collectionId,
-              entries
+              entries,
+              tintLightness: parseInt(tintLightnessSlider.value),
+              tintSaturation: parseInt(tintSaturationSlider.value),
+              shadeLightness: parseInt(shadeLightnessSlider.value),
+              shadeSaturation: parseInt(shadeSaturationSlider.value)
             }
           }, '*');
           return;
