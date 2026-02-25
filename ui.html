@@ -375,15 +375,14 @@
 </head>
 <body>
   <div class="tabs">
-    <button class="tab active" data-tab="create">Spectrum</button>
-    <button class="tab" data-tab="generate">Generate</button>
-    <button class="tab" data-tab="interpolate">Interpolate</button>
-    <button class="tab" data-tab="modemaker">Modes</button>
+    <button class="tab active" data-tab="modemaker">Create</button>
+    <button class="tab" data-tab="create">Spectrum</button>
     <button class="tab" data-tab="connect">Connect</button>
+    <button class="tab" data-tab="generate">Generate</button>
   </div>
 
   <!-- Tab 1: Spectrum -->
-  <div id="create-tab" class="tab-content active">
+  <div id="create-tab" class="tab-content">
     <h3>Selection → Color Scale</h3>
     <div class="form-group">
       <label for="spectrum-collection">Collection</label>
@@ -419,50 +418,8 @@
     <div id="spectrum-message" class="message"></div>
   </div>
 
-  <!-- Tab 2: Generate Layers -->
-  <div id="generate-tab" class="tab-content">
-    <h3>Variables → Layers</h3>
-    <div class="form-group">
-      <label for="gen-collection">Collection</label>
-      <select id="gen-collection">
-        <option value="" disabled selected>Select a collection</option>
-      </select>
-      <div class="hint">Creates 200×200 rectangles for each color variable</div>
-    </div>
-    <div class="switch-row">
-      <span class="switch-label">Bind variables to fills</span>
-      <label class="switch">
-        <input type="checkbox" id="bind-variables">
-        <span class="slider"></span>
-      </label>
-    </div>
-    <div class="switch-row">
-      <span class="switch-label">Generate per mode</span>
-      <label class="switch">
-        <input type="checkbox" id="per-mode" checked>
-        <span class="slider"></span>
-      </label>
-    </div>
-    <button id="generate" class="primary" disabled>Generate Layers</button>
-    <div id="generate-message" class="message"></div>
-  </div>
-
-  <!-- Tab 3: Interpolate Colors -->
-  <div id="interpolate-tab" class="tab-content">
-    <h3>Keys → Color Scale</h3>
-    <div class="form-group">
-      <label for="interpolate-collection">Collection</label>
-      <select id="interpolate-collection">
-        <option value="">Create new collection</option>
-      </select>
-      <div class="hint">Select key colors (e.g., 300, 500 Light, 500 Dark, 700) to generate full 000-1000 scale</div>
-    </div>
-    <button id="interpolate" class="primary">Interpolate Colors</button>
-    <div id="interpolate-message" class="message"></div>
-  </div>
-
-  <!-- Tab 5: Mode Maker -->
-  <div id="modemaker-tab" class="tab-content">
+  <!-- Tab 2: Mode Maker -->
+  <div id="modemaker-tab" class="tab-content active">
     <h3>Hex → Light/Dark Modes</h3>
     
     <div class="form-group">
@@ -584,6 +541,34 @@
     <div id="suggestions-list" class="suggestions-list"></div>
   </div>
 
+  <!-- Tab 4: Generate Layers -->
+  <div id="generate-tab" class="tab-content">
+    <h3>Variables → Layers</h3>
+    <div class="form-group">
+      <label for="gen-collection">Collection</label>
+      <select id="gen-collection">
+        <option value="" disabled selected>Select a collection</option>
+      </select>
+      <div class="hint">Creates 200×200 rectangles for each color variable</div>
+    </div>
+    <div class="switch-row">
+      <span class="switch-label">Bind variables to fills</span>
+      <label class="switch">
+        <input type="checkbox" id="bind-variables">
+        <span class="slider"></span>
+      </label>
+    </div>
+    <div class="switch-row">
+      <span class="switch-label">Generate per mode</span>
+      <label class="switch">
+        <input type="checkbox" id="per-mode" checked>
+        <span class="slider"></span>
+      </label>
+    </div>
+    <button id="generate" class="primary" disabled>Generate Layers</button>
+    <div id="generate-message" class="message"></div>
+  </div>
+
   <script>
     // Tab switching
     const tabs = document.querySelectorAll('.tab');
@@ -617,10 +602,6 @@
     const genCollectionSelect = document.getElementById('gen-collection');
     const generateButton = document.getElementById('generate');
     const generateMessageDiv = document.getElementById('generate-message');
-
-    const interpolateCollectionSelect = document.getElementById('interpolate-collection');
-    const interpolateButton = document.getElementById('interpolate');
-    const interpolateMessageDiv = document.getElementById('interpolate-message');
 
     // Connect elements
     const connectCollectionSelect = document.getElementById('connect-collection');
@@ -1101,17 +1082,6 @@
       }, '*');
     };
 
-    // Interpolate Colors button
-    interpolateButton.onclick = () => {
-      const collectionId = interpolateCollectionSelect.value || null;
-      parent.postMessage({ 
-        pluginMessage: { 
-          type: 'interpolate-colors', 
-          collectionId 
-        } 
-      }, '*');
-    };
-
     window.onmessage = (event) => {
       const msg = event.data.pluginMessage;
       
@@ -1119,7 +1089,6 @@
         // Save current selections
         const currentSpectrumValue = spectrumCollectionSelect.value;
         const currentGenValue = genCollectionSelect.value;
-        const currentInterpolateValue = interpolateCollectionSelect.value;
         const currentConnectValue = connectCollectionSelect.value;
         
         // Update spectrum tab dropdown
@@ -1138,15 +1107,6 @@
           option.value = collection.id;
           option.textContent = collection.name;
           genCollectionSelect.appendChild(option);
-        });
-
-        // Update interpolate tab dropdown
-        interpolateCollectionSelect.innerHTML = '<option value="">Create new collection</option>';
-        msg.collections.forEach(collection => {
-          const option = document.createElement('option');
-          option.value = collection.id;
-          option.textContent = collection.name;
-          interpolateCollectionSelect.appendChild(option);
         });
 
         // Update mode maker tab dropdown
@@ -1174,7 +1134,6 @@
           genCollectionSelect.value = currentGenValue;
           generateButton.disabled = false;
         }
-        if (currentInterpolateValue) interpolateCollectionSelect.value = currentInterpolateValue;
         if (currentModeValue) modeCollectionSelect.value = currentModeValue;
         if (currentConnectValue) {
           connectCollectionSelect.value = currentConnectValue;
@@ -1196,14 +1155,6 @@
 
       if (msg.type === 'generate-error') {
         showMessage(generateMessageDiv, msg.message, 'error');
-      }
-
-      if (msg.type === 'interpolate-success') {
-        showMessage(interpolateMessageDiv, msg.message, 'success');
-      }
-
-      if (msg.type === 'interpolate-error') {
-        showMessage(interpolateMessageDiv, msg.message, 'error');
       }
 
       if (msg.type === 'modemaker-success') {
