@@ -375,25 +375,48 @@
 </head>
 <body>
   <div class="tabs">
-    <button class="tab active" data-tab="create">Create</button>
+    <button class="tab active" data-tab="create">Spectrum</button>
     <button class="tab" data-tab="generate">Generate</button>
     <button class="tab" data-tab="interpolate">Interpolate</button>
     <button class="tab" data-tab="modemaker">Modes</button>
     <button class="tab" data-tab="connect">Connect</button>
   </div>
 
-  <!-- Tab 1: Create Variables -->
+  <!-- Tab 1: Spectrum -->
   <div id="create-tab" class="tab-content active">
-    <h3>Layers → Variables</h3>
+    <h3>Selection → Color Scale</h3>
     <div class="form-group">
-      <label for="collection">Collection</label>
-      <select id="collection">
+      <label for="spectrum-collection">Collection</label>
+      <select id="spectrum-collection">
         <option value="">Create new collection</option>
       </select>
-      <div class="hint">Select a collection or create a new one</div>
+      <div class="hint">Select layers to generate full 000-1000 color scales</div>
     </div>
-    <button id="create" class="primary">Create Variables</button>
-    <div id="create-message" class="message"></div>
+
+    <div class="form-group">
+      <label>Input Mode</label>
+      <div class="mode-selector" id="spectrum-mode-selector">
+        <button class="mode-btn active" data-mode="Light">
+          <div class="mode-icon light"></div>
+          <span>Light</span>
+        </button>
+        <button class="mode-btn" data-mode="Dark">
+          <div class="mode-icon dark"></div>
+          <span>Dark</span>
+        </button>
+        <button class="mode-btn" data-mode="IC - Light">
+          <div class="mode-icon ic-light"></div>
+          <span>IC - Light</span>
+        </button>
+        <button class="mode-btn" data-mode="IC - Dark">
+          <div class="mode-icon ic-dark"></div>
+          <span>IC - Dark</span>
+        </button>
+      </div>
+    </div>
+
+    <button id="spectrum-generate" class="primary">Generate Spectrum</button>
+    <div id="spectrum-message" class="message"></div>
   </div>
 
   <!-- Tab 2: Generate Layers -->
@@ -575,10 +598,21 @@
       };
     });
 
-    // Elements
-    const collectionSelect = document.getElementById('collection');
-    const createButton = document.getElementById('create');
-    const createMessageDiv = document.getElementById('create-message');
+    // Spectrum elements
+    const spectrumCollectionSelect = document.getElementById('spectrum-collection');
+    const spectrumGenerateButton = document.getElementById('spectrum-generate');
+    const spectrumMessageDiv = document.getElementById('spectrum-message');
+    const spectrumModeBtns = document.querySelectorAll('#spectrum-mode-selector .mode-btn');
+    let spectrumSelectedMode = 'Light';
+    let pendingSpectrumRequest = false;
+
+    spectrumModeBtns.forEach(btn => {
+      btn.onclick = () => {
+        spectrumModeBtns.forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        spectrumSelectedMode = btn.dataset.mode;
+      };
+    });
     
     const genCollectionSelect = document.getElementById('gen-collection');
     const generateButton = document.getElementById('generate');
@@ -1041,14 +1075,11 @@
       });
     }
 
-    // Create Variables button
-    createButton.onclick = () => {
-      const collectionId = collectionSelect.value || null;
-      parent.postMessage({ 
-        pluginMessage: { 
-          type: 'create-variables', 
-          collectionId 
-        } 
+    // Spectrum Generate button
+    spectrumGenerateButton.onclick = () => {
+      pendingSpectrumRequest = true;
+      parent.postMessage({
+        pluginMessage: { type: 'get-selection-fills' }
       }, '*');
     };
 
@@ -1086,18 +1117,18 @@
       
       if (msg.type === 'collections') {
         // Save current selections
-        const currentValue = collectionSelect.value;
+        const currentSpectrumValue = spectrumCollectionSelect.value;
         const currentGenValue = genCollectionSelect.value;
         const currentInterpolateValue = interpolateCollectionSelect.value;
         const currentConnectValue = connectCollectionSelect.value;
         
-        // Update create tab dropdown
-        collectionSelect.innerHTML = '<option value="">Create new collection</option>';
+        // Update spectrum tab dropdown
+        spectrumCollectionSelect.innerHTML = '<option value="">Create new collection</option>';
         msg.collections.forEach(collection => {
           const option = document.createElement('option');
           option.value = collection.id;
           option.textContent = collection.name;
-          collectionSelect.appendChild(option);
+          spectrumCollectionSelect.appendChild(option);
         });
         
         // Update generate tab dropdown
@@ -1138,7 +1169,7 @@
         });
         
         // Restore selections
-        if (currentValue) collectionSelect.value = currentValue;
+        if (currentSpectrumValue) spectrumCollectionSelect.value = currentSpectrumValue;
         if (currentGenValue) {
           genCollectionSelect.value = currentGenValue;
           generateButton.disabled = false;
@@ -1151,18 +1182,18 @@
         }
       }
       
-      if (msg.type === 'success') {
-        showMessage(createMessageDiv, msg.message, 'success');
+      if (msg.type === 'spectrum-success') {
+        showMessage(spectrumMessageDiv, msg.message, 'success');
       }
-      
+
+      if (msg.type === 'spectrum-error') {
+        showMessage(spectrumMessageDiv, msg.message, 'error');
+      }
+
       if (msg.type === 'generate-success') {
         showMessage(generateMessageDiv, msg.message, 'success');
       }
-      
-      if (msg.type === 'error') {
-        showMessage(createMessageDiv, msg.message, 'error');
-      }
-      
+
       if (msg.type === 'generate-error') {
         showMessage(generateMessageDiv, msg.message, 'error');
       }
@@ -1180,11 +1211,54 @@
       }
 
       if (msg.type === 'modemaker-error') {
-        showMessage(modemakerMessageDiv, msg.message, 'error');
+        if (pendingSpectrumRequest) {
+          pendingSpectrumRequest = false;
+          showMessage(spectrumMessageDiv, msg.message, 'error');
+        } else {
+          showMessage(modemakerMessageDiv, msg.message, 'error');
+        }
       }
 
       if (msg.type === 'selection-fills') {
         const fills = msg.fills;
+
+        if (pendingSpectrumRequest) {
+          pendingSpectrumRequest = false;
+
+          if (!fills || fills.length === 0) {
+            showMessage(spectrumMessageDiv, 'No layers with solid fills found in selection', 'error');
+            return;
+          }
+
+          const collectionId = spectrumCollectionSelect.value || null;
+
+          const entries = fills.map(f => {
+            const colors = generateModeColors(f.hex, spectrumSelectedMode, f.opacity, false);
+            if (!colors) return null;
+            return {
+              groupName: f.name,
+              keyColors: [
+                { position: 500, mode: 'Light', hex: colors.Light },
+                { position: 500, mode: 'Dark', hex: colors.Dark }
+              ]
+            };
+          }).filter(e => e !== null);
+
+          if (entries.length === 0) {
+            showMessage(spectrumMessageDiv, 'Could not process any colors from selection', 'error');
+            return;
+          }
+
+          parent.postMessage({
+            pluginMessage: {
+              type: 'generate-spectrum',
+              collectionId,
+              entries
+            }
+          }, '*');
+          return;
+        }
+
         if (!fills || fills.length === 0) {
           showMessage(modemakerMessageDiv, 'No layers with solid fills found in selection', 'error');
           return;

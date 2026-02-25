@@ -50,96 +50,215 @@ async function updateCollections() {
 updateCollections();
 
 figma.ui.onmessage = async (msg) => {
-  if (msg.type === 'create-variables') {
-    const selection = figma.currentPage.selection;
-    
-    if (selection.length === 0) {
-      figma.ui.postMessage({ type: 'error', message: 'Please select at least one layer' });
-      return;
-    }
+  if (msg.type === 'generate-spectrum') {
+    const { collectionId, entries } = msg;
 
-    // Get or create collection
     let collection: VariableCollection;
     const collections = await figma.variables.getLocalVariableCollectionsAsync();
-    
-    if (msg.collectionId) {
-      collection = collections.find(c => c.id === msg.collectionId)!;
+
+    if (collectionId) {
+      collection = collections.find(c => c.id === collectionId)!;
+      if (!collection) {
+        figma.ui.postMessage({ type: 'spectrum-error', message: 'Collection not found' });
+        return;
+      }
     } else {
-      // Create new collection
-      collection = figma.variables.createVariableCollection('Color Variables');
+      collection = figma.variables.createVariableCollection('Spectrum Colors');
     }
 
-    const createdCount = { new: 0, updated: 0 };
+    const modeId = collection.modes[0].modeId;
 
-    for (const node of selection) {
-      if ('fills' in node && Array.isArray(node.fills) && node.fills.length > 0) {
-        const fill = node.fills[0];
-        
-        if (fill.type === 'SOLID') {
-          const fullName = node.name;
-          const color = fill.color;
-          
-          // Parse layer name for mode pattern: "variableName -modeName"
-          let variableName = fullName;
-          let modeName: string | null = null;
-          
-          if (fullName.includes(' -')) {
-            const parts = fullName.split(' -');
-            variableName = parts[0].trim();
-            modeName = parts[1].trim();
-          }
-          
-          // Get or create the mode
-          let modeId: string;
-          if (modeName) {
-            // Check if mode exists
-            let existingMode = collection.modes.find(m => m.name === modeName);
-            
-            if (!existingMode) {
-              // Create new mode
-              modeId = collection.addMode(modeName);
-            } else {
-              modeId = existingMode.modeId;
-            }
-          } else {
-            // Use default mode
-            modeId = collection.modes[0].modeId;
-          }
-          
-          // Check if variable already exists
-          const existingVariables = (await Promise.all(
-            collection.variableIds.map(id => figma.variables.getVariableByIdAsync(id))
-          )).filter((v): v is Variable => v !== null);
-          
-          const existingVar = existingVariables.find(v => v.name === variableName);
-          
-          const colorValue = {
-            r: color.r,
-            g: color.g,
-            b: color.b,
-            a: fill.opacity !== undefined ? fill.opacity : 1
-          };
-          
-          if (existingVar) {
-            // Update existing variable
-            existingVar.setValueForMode(modeId, colorValue);
-            createdCount.updated++;
-          } else {
-            // Create new variable
-            const variable = figma.variables.createVariable(variableName, collection, 'COLOR');
-            variable.setValueForMode(modeId, colorValue);
-            createdCount.new++;
-          }
+    interface KeyColor {
+      position: number;
+      mode: 'Light' | 'Dark';
+      color: RGB;
+    }
+
+    function hexToRgb(hex: string): RGB {
+      return {
+        r: parseInt(hex.substring(0, 2), 16) / 255,
+        g: parseInt(hex.substring(2, 4), 16) / 255,
+        b: parseInt(hex.substring(4, 6), 16) / 255
+      };
+    }
+
+    function lerpColor(c1: RGB, c2: RGB, t: number): RGB {
+      return {
+        r: c1.r + (c2.r - c1.r) * t,
+        g: c1.g + (c2.g - c1.g) * t,
+        b: c1.b + (c2.b - c1.b) * t
+      };
+    }
+
+    function rgbToHsl(c: RGB): { h: number; s: number; l: number } {
+      const max = Math.max(c.r, c.g, c.b);
+      const min = Math.min(c.r, c.g, c.b);
+      let h = 0, s = 0;
+      const l = (max + min) / 2;
+      if (max !== min) {
+        const d = max - min;
+        s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+        switch (max) {
+          case c.r: h = ((c.g - c.b) / d + (c.g < c.b ? 6 : 0)) / 6; break;
+          case c.g: h = ((c.b - c.r) / d + 2) / 6; break;
+          case c.b: h = ((c.r - c.g) / d + 4) / 6; break;
         }
+      }
+      return { h, s, l };
+    }
+
+    function hslToRgb(h: number, s: number, l: number): RGB {
+      let r, g, b;
+      if (s === 0) {
+        r = g = b = l;
+      } else {
+        const hue2rgb = (p: number, q: number, t: number) => {
+          if (t < 0) t += 1;
+          if (t > 1) t -= 1;
+          if (t < 1/6) return p + (q - p) * 6 * t;
+          if (t < 1/2) return q;
+          if (t < 2/3) return p + (q - p) * (2/3 - t) * 6;
+          return p;
+        };
+        const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+        const p = 2 * l - q;
+        r = hue2rgb(p, q, h + 1/3);
+        g = hue2rgb(p, q, h);
+        b = hue2rgb(p, q, h - 1/3);
+      }
+      return { r, g, b };
+    }
+
+    function lightenColor(c: RGB, amount: number): RGB {
+      const hsl = rgbToHsl(c);
+      const newL = hsl.l + (1 - hsl.l) * amount;
+      const newS = hsl.s * (1 - amount * 0.5);
+      return hslToRgb(hsl.h, Math.max(0, newS), Math.min(1, newL));
+    }
+
+    function darkenColor(c: RGB, amount: number): RGB {
+      const hsl = rgbToHsl(c);
+      const newL = hsl.l * (1 - amount);
+      const newS = hsl.s;
+      return hslToRgb(hsl.h, newS, Math.max(0, newL));
+    }
+
+    function getFalloffAmount(steps: number): number {
+      const falloff = [0, 0.20, 0.38, 0.55, 0.72, 0.85];
+      return falloff[Math.min(steps, falloff.length - 1)];
+    }
+
+    function getColorAtPosition(keys: KeyColor[], pos: number, scaleStart: number, scaleEnd: number, isLight: boolean): RGB {
+      if (keys.length === 0) return { r: 0.5, g: 0.5, b: 0.5 };
+
+      let lowerKey: KeyColor | null = null;
+      let upperKey: KeyColor | null = null;
+
+      for (const key of keys) {
+        if (key.position <= pos) lowerKey = key;
+        if (key.position >= pos && !upperKey) upperKey = key;
+      }
+
+      if (!lowerKey && upperKey) {
+        const steps = Math.round((upperKey.position - pos) / 100);
+        const amount = getFalloffAmount(steps);
+        return isLight ? lightenColor(upperKey.color, amount) : darkenColor(upperKey.color, amount);
+      }
+
+      if (!upperKey && lowerKey) {
+        const steps = Math.round((pos - lowerKey.position) / 100);
+        const amount = getFalloffAmount(steps);
+        return isLight ? lightenColor(lowerKey.color, amount) : darkenColor(lowerKey.color, amount);
+      }
+
+      if (lowerKey && upperKey) {
+        if (lowerKey.position === upperKey.position) return lowerKey.color;
+        const t = (pos - lowerKey.position) / (upperKey.position - lowerKey.position);
+        return lerpColor(lowerKey.color, upperKey.color, t);
+      }
+
+      return { r: 0.5, g: 0.5, b: 0.5 };
+    }
+
+    function get500KeyColor(keys: KeyColor[]): RGB {
+      if (keys.length === 0) return { r: 0.5, g: 0.5, b: 0.5 };
+      const key500 = keys.find(k => k.position === 500)
+        || keys.reduce((prev, curr) =>
+            Math.abs(curr.position - 500) < Math.abs(prev.position - 500) ? curr : prev
+          );
+      return key500.color;
+    }
+
+    function getAlphaForPosition(pos: number): number {
+      const alphaMap: { [key: number]: number } = {
+        0: 0.20, 100: 0.48, 200: 0.64, 300: 0.88, 400: 0.94, 500: 1.0,
+        600: 0.94, 700: 0.88, 800: 0.64, 900: 0.48, 1000: 0.20
+      };
+      return alphaMap[pos] ?? 1.0;
+    }
+
+    const existingVariables = (await Promise.all(
+      collection.variableIds.map(id => figma.variables.getVariableByIdAsync(id))
+    )).filter((v): v is Variable => v !== null);
+
+    let created = 0;
+    let updated = 0;
+
+    function createOrUpdateVariable(varName: string, colorValue: RGBA) {
+      const existingVar = existingVariables.find(v => v.name === varName);
+      if (existingVar) {
+        existingVar.setValueForMode(modeId, colorValue);
+        updated++;
+      } else {
+        const variable = figma.variables.createVariable(varName, collection, 'COLOR');
+        variable.setValueForMode(modeId, colorValue);
+        existingVariables.push(variable);
+        created++;
       }
     }
 
-    figma.ui.postMessage({ 
-      type: 'success', 
-      message: `Created ${createdCount.new} new variables, updated ${createdCount.updated} existing variables` 
+    for (const entry of entries) {
+      const { groupName, keyColors } = entry;
+
+      const parsedKeys: KeyColor[] = keyColors.map((k: { position: number; mode: string; hex: string }) => ({
+        position: k.position,
+        mode: k.mode as 'Light' | 'Dark',
+        color: hexToRgb(k.hex)
+      }));
+
+      const lightKeys = parsedKeys.filter(k => k.mode === 'Light').sort((a, b) => a.position - b.position);
+      const darkKeys = parsedKeys.filter(k => k.mode === 'Dark').sort((a, b) => a.position - b.position);
+
+      const lightPositions = [0, 100, 200, 300, 400, 500];
+      const light500Color = get500KeyColor(lightKeys);
+
+      for (const pos of lightPositions) {
+        const posStr = pos.toString().padStart(3, '0');
+        const posSuffix = pos === 500 ? `${posStr} (Light)` : posStr;
+
+        const opaqueColor = getColorAtPosition(lightKeys, pos, 0, 500, true);
+        createOrUpdateVariable(`${groupName}/Opaque/${posSuffix}`, { r: opaqueColor.r, g: opaqueColor.g, b: opaqueColor.b, a: 1 });
+        createOrUpdateVariable(`${groupName}/Opacity/${posSuffix}`, { r: light500Color.r, g: light500Color.g, b: light500Color.b, a: getAlphaForPosition(pos) });
+      }
+
+      const darkPositions = [500, 600, 700, 800, 900, 1000];
+      const dark500Color = get500KeyColor(darkKeys);
+
+      for (const pos of darkPositions) {
+        const posStr = pos.toString().padStart(3, '0');
+        const posSuffix = pos === 500 ? `${posStr} (Dark)` : posStr;
+
+        const opaqueColor = getColorAtPosition(darkKeys, pos, 500, 1000, false);
+        createOrUpdateVariable(`${groupName}/Opaque/${posSuffix}`, { r: opaqueColor.r, g: opaqueColor.g, b: opaqueColor.b, a: 1 });
+        createOrUpdateVariable(`${groupName}/Opacity/${posSuffix}`, { r: dark500Color.r, g: dark500Color.g, b: dark500Color.b, a: getAlphaForPosition(pos) });
+      }
+    }
+
+    figma.ui.postMessage({
+      type: 'spectrum-success',
+      message: `Spectrum: created ${created}, updated ${updated} variables`
     });
-    
-    // Update collections list
+
     updateCollections();
   }
 
