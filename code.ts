@@ -51,6 +51,7 @@ updateCollections();
 
 figma.ui.onmessage = async (msg) => {
   if (msg.type === 'generate-spectrum') {
+    try {
     const { collectionId, entries } = msg;
     const tintLightness: number = msg.tintLightness ?? 50;
     const tintSaturation: number = msg.tintSaturation ?? 50;
@@ -147,10 +148,10 @@ figma.ui.onmessage = async (msg) => {
       if (amount === 0) return c;
       const hsl = rgbToHsl(c);
       const darkDampen = 1.0 - (shadeLightness / 100) * 0.7;
-      const satDecay = 1.0 * (1 - shadeSaturation / 100);
+      const satBoost = 0.8 * (shadeSaturation / 100);
       const newL = hsl.l * (1 - amount * darkDampen);
-      const newS = hsl.s * (1 - amount * satDecay);
-      return hslToRgb(hsl.h, Math.max(0, newS), Math.max(0, newL));
+      const newS = Math.min(1, hsl.s * (1 + amount * satBoost));
+      return hslToRgb(hsl.h, newS, Math.max(0, newL));
     }
 
     function getFalloffAmount(steps: number): number {
@@ -211,19 +212,35 @@ figma.ui.onmessage = async (msg) => {
       collection.variableIds.map(id => figma.variables.getVariableByIdAsync(id))
     )).filter((v): v is Variable => v !== null);
 
+    const existingVarMap = new Map<string, Variable>();
+    for (const v of existingVariables) {
+      existingVarMap.set(v.name, v);
+    }
+
     let created = 0;
     let updated = 0;
 
     function createOrUpdateVariable(varName: string, colorValue: RGBA) {
-      const existingVar = existingVariables.find(v => v.name === varName);
+      const existingVar = existingVarMap.get(varName);
       if (existingVar) {
         existingVar.setValueForMode(modeId, colorValue);
         updated++;
       } else {
-        const variable = figma.variables.createVariable(varName, collection, 'COLOR');
-        variable.setValueForMode(modeId, colorValue);
-        existingVariables.push(variable);
-        created++;
+        try {
+          const variable = figma.variables.createVariable(varName, collection, 'COLOR');
+          variable.setValueForMode(modeId, colorValue);
+          existingVarMap.set(varName, variable);
+          created++;
+        } catch (createErr: any) {
+          const trimmed = varName.trim();
+          const fallback = existingVarMap.get(trimmed)
+            || existingVariables.find(v => v.name.trim() === trimmed);
+          if (fallback) {
+            fallback.setValueForMode(modeId, colorValue);
+            existingVarMap.set(varName, fallback);
+            updated++;
+          }
+        }
       }
     }
 
@@ -270,6 +287,12 @@ figma.ui.onmessage = async (msg) => {
     });
 
     updateCollections();
+    } catch (err: any) {
+      figma.ui.postMessage({
+        type: 'spectrum-error',
+        message: `Error: ${err?.message || err}`
+      });
+    }
   }
 
   if (msg.type === 'refresh-collections') {

@@ -446,6 +446,21 @@
     </div>
 
     <div class="form-group">
+      <label>Key Color Lightness (500)</label>
+      <div class="slider-row">
+        <input type="range" id="key-lightness" min="-50" max="50" value="0">
+        <span class="slider-value" id="key-lightness-value">0</span>
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Key Color Saturation (500)</label>
+      <div class="slider-row">
+        <input type="range" id="key-saturation" min="-50" max="50" value="0">
+        <span class="slider-value" id="key-saturation-value">0</span>
+      </div>
+    </div>
+
+    <div class="form-group">
       <label>Tint Lightness (000–400)</label>
       <div class="slider-row">
         <input type="range" id="tint-lightness" min="0" max="100" value="50">
@@ -503,7 +518,7 @@
 
     <div class="form-group">
       <label>Input Mode</label>
-      <div class="mode-selector">
+      <div class="mode-selector" id="modemaker-mode-selector">
         <button class="mode-btn active" data-mode="Light">
           <div class="mode-icon light"></div>
           <span>Light</span>
@@ -649,6 +664,10 @@
     const spectrumGenerateButton = document.getElementById('spectrum-generate');
     const spectrumMessageDiv = document.getElementById('spectrum-message');
     const spectrumModeBtns = document.querySelectorAll('#spectrum-mode-selector .mode-btn');
+    const keyLightnessSlider = document.getElementById('key-lightness');
+    const keyLightnessValue = document.getElementById('key-lightness-value');
+    const keySaturationSlider = document.getElementById('key-saturation');
+    const keySaturationValue = document.getElementById('key-saturation-value');
     const tintLightnessSlider = document.getElementById('tint-lightness');
     const tintLightnessValue = document.getElementById('tint-lightness-value');
     const tintSaturationSlider = document.getElementById('tint-saturation');
@@ -668,6 +687,12 @@
       };
     });
 
+    keyLightnessSlider.oninput = () => {
+      keyLightnessValue.textContent = keyLightnessSlider.value;
+    };
+    keySaturationSlider.oninput = () => {
+      keySaturationValue.textContent = keySaturationSlider.value;
+    };
     tintLightnessSlider.oninput = () => {
       tintLightnessValue.textContent = tintLightnessSlider.value + '%';
     };
@@ -700,7 +725,7 @@
     const colorPreview = document.getElementById('color-preview');
     const generateModesButton = document.getElementById('generate-modes');
     const modemakerMessageDiv = document.getElementById('modemaker-message');
-    const modeBtns = document.querySelectorAll('.mode-btn');
+    const modeBtns = document.querySelectorAll('#modemaker-mode-selector .mode-btn');
     let selectedMode = 'Light';
 
     // Output mode checkboxes
@@ -872,6 +897,17 @@
       const newL = Math.max(0, Math.min(1, hsl.l + lDelta));
       const newS = Math.max(0, Math.min(1, hsl.s + sDelta));
       return hslToRgb(hsl.h, newS, newL);
+    }
+
+    function adjustKeyColor(hex, lightnessOffset, saturationOffset) {
+      if (lightnessOffset === 0 && saturationOffset === 0) return hex;
+      const rgb = hexToRgb(hex);
+      if (!rgb) return hex;
+      const hsl = rgbToHsl(rgb.r, rgb.g, rgb.b);
+      const newL = Math.max(0, Math.min(1, hsl.l + lightnessOffset / 100));
+      const newS = Math.max(0, Math.min(1, hsl.s + saturationOffset / 100));
+      const adjusted = hslToRgb(hsl.h, newS, newL);
+      return rgbToHex(adjusted.r, adjusted.g, adjusted.b);
     }
 
     function generateModeColors(inputHex, inputMode, baseOpacity = 100, mirrorIc = false) {
@@ -1166,7 +1202,7 @@
 
     window.onmessage = (event) => {
       const msg = event.data.pluginMessage;
-      
+
       if (msg.type === 'collections') {
         // Save current selections
         const currentSpectrumValue = spectrumCollectionSelect.value;
@@ -1265,14 +1301,18 @@
 
           const collectionId = spectrumCollectionSelect.value || null;
 
+          const keyL = parseInt(keyLightnessSlider.value);
+          const keyS = parseInt(keySaturationSlider.value);
+          const isLightInput = (spectrumSelectedMode === 'Light' || spectrumSelectedMode === 'IC - Light');
+
           const entries = fills.map(f => {
             const colors = generateModeColors(f.hex, spectrumSelectedMode, f.opacity, false);
             if (!colors) return null;
             return {
               groupName: f.name,
               keyColors: [
-                { position: 500, mode: 'Light', hex: colors.Light },
-                { position: 500, mode: 'Dark', hex: colors.Dark }
+                { position: 500, mode: 'Light', hex: isLightInput ? colors.Light : adjustKeyColor(colors.Dark, keyL, keyS) },
+                { position: 500, mode: 'Dark',  hex: isLightInput ? adjustKeyColor(colors.Light, keyL, keyS) : colors.Dark }
               ]
             };
           }).filter(e => e !== null);
