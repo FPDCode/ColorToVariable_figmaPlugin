@@ -626,35 +626,47 @@
 
     <hr class="slider-separator">
 
-    <div class="form-group">
-      <label>Light Lightness (000–400)</label>
-      <div class="slider-row">
-        <input type="range" id="tint-lightness" min="0" max="100" value="50">
-        <input type="number" class="slider-input" id="tint-lightness-value" min="0" max="100" value="50">
-      </div>
+    <div class="switch-row">
+      <span class="switch-label">Helios Preset</span>
+      <label class="switch">
+        <input type="checkbox" id="helios-preset">
+        <span class="slider"></span>
+      </label>
     </div>
-    <div class="form-group">
-      <label>Light Saturation (000–400)</label>
-      <div class="slider-row">
-        <input type="range" id="tint-saturation" min="0" max="100" value="50">
-        <input type="number" class="slider-input" id="tint-saturation-value" min="0" max="100" value="50">
+
+    <div id="spectrum-tint-shade-sliders">
+      <div class="form-group">
+        <label>Light Lightness (000–400)</label>
+        <div class="slider-row">
+          <input type="range" id="tint-lightness" min="0" max="100" value="50">
+          <input type="number" class="slider-input" id="tint-lightness-value" min="0" max="100" value="50">
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Light Saturation (000–400)</label>
+        <div class="slider-row">
+          <input type="range" id="tint-saturation" min="0" max="100" value="50">
+          <input type="number" class="slider-input" id="tint-saturation-value" min="0" max="100" value="50">
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label>Dark Lightness (600–1000)</label>
+        <div class="slider-row">
+          <input type="range" id="shade-lightness" min="0" max="100" value="50">
+          <input type="number" class="slider-input" id="shade-lightness-value" min="0" max="100" value="50">
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Dark Saturation (600–1000)</label>
+        <div class="slider-row">
+          <input type="range" id="shade-saturation" min="0" max="100" value="50">
+          <input type="number" class="slider-input" id="shade-saturation-value" min="0" max="100" value="50">
+        </div>
       </div>
     </div>
 
-    <div class="form-group">
-      <label>Dark Lightness (600–1000)</label>
-      <div class="slider-row">
-        <input type="range" id="shade-lightness" min="0" max="100" value="50">
-        <input type="number" class="slider-input" id="shade-lightness-value" min="0" max="100" value="50">
-      </div>
-    </div>
-    <div class="form-group">
-      <label>Dark Saturation (600–1000)</label>
-      <div class="slider-row">
-        <input type="range" id="shade-saturation" min="0" max="100" value="50">
-        <input type="number" class="slider-input" id="shade-saturation-value" min="0" max="100" value="50">
-      </div>
-    </div>
+    <hr class="slider-separator">
 
     <div class="form-group toggle-row">
       <label for="input-only">Output input side only</label>
@@ -692,6 +704,7 @@
     </div>
     <div class="hint" id="bulk-hint" style="display:none">
       Reads fills from selected layers. Layer names become variable names.
+      If fills use existing variables, aliases will be created automatically.
     </div>
 
     <div class="form-group">
@@ -713,6 +726,65 @@
           <div class="mode-icon ic-dark"></div>
           <span>IC - Dark</span>
         </button>
+      </div>
+    </div>
+
+    <div id="bulk-sliders" style="display:none">
+      <div class="form-group" style="margin-top: 16px;">
+        <label id="bulk-key-lightness-label">Dark Key Color Lightness (500)</label>
+        <div class="slider-row">
+          <input type="range" id="bulk-key-lightness" min="-50" max="50" value="0">
+          <input type="number" class="slider-input" id="bulk-key-lightness-value" min="-50" max="50" value="0">
+        </div>
+      </div>
+      <div class="form-group">
+        <label id="bulk-key-saturation-label">Dark Key Color Saturation (500)</label>
+        <div class="slider-row">
+          <input type="range" id="bulk-key-saturation" min="-50" max="50" value="0">
+          <input type="number" class="slider-input" id="bulk-key-saturation-value" min="-50" max="50" value="0">
+        </div>
+      </div>
+
+      <hr class="slider-separator">
+
+      <div class="switch-row">
+        <span class="switch-label">Helios Preset</span>
+        <label class="switch">
+          <input type="checkbox" id="bulk-helios-preset">
+          <span class="slider"></span>
+        </label>
+      </div>
+
+      <div id="bulk-tint-shade-sliders">
+        <div class="form-group">
+          <label>Light Lightness (000–400)</label>
+          <div class="slider-row">
+            <input type="range" id="bulk-tint-lightness" min="0" max="100" value="50">
+            <input type="number" class="slider-input" id="bulk-tint-lightness-value" min="0" max="100" value="50">
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Light Saturation (000–400)</label>
+          <div class="slider-row">
+            <input type="range" id="bulk-tint-saturation" min="0" max="100" value="50">
+            <input type="number" class="slider-input" id="bulk-tint-saturation-value" min="0" max="100" value="50">
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label>Dark Lightness (600–1000)</label>
+          <div class="slider-row">
+            <input type="range" id="bulk-shade-lightness" min="0" max="100" value="50">
+            <input type="number" class="slider-input" id="bulk-shade-lightness-value" min="0" max="100" value="50">
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Dark Saturation (600–1000)</label>
+          <div class="slider-row">
+            <input type="range" id="bulk-shade-saturation" min="0" max="100" value="50">
+            <input type="number" class="slider-input" id="bulk-shade-saturation-value" min="0" max="100" value="50">
+          </div>
+        </div>
       </div>
     </div>
 
@@ -765,6 +837,14 @@
         <div class="preview-swatch" id="preview-ic-light" style="background:var(--color-border-light)"><span>IC - L</span></div>
         <div class="preview-swatch" id="preview-ic-dark" style="background:var(--color-border-light)"><span>IC - D</span></div>
       </div>
+    </div>
+
+    <div id="bulk-apply-row" class="switch-row" style="display:none">
+      <span class="switch-label">Apply to selected layers</span>
+      <label class="switch">
+        <input type="checkbox" id="bulk-apply-to-layers">
+        <span class="slider"></span>
+      </label>
     </div>
 
     </div>
@@ -917,7 +997,45 @@
     syncSlider(tintSaturationSlider, tintSaturationValue);
     syncSlider(shadeLightnessSlider, shadeLightnessValue);
     syncSlider(shadeSaturationSlider, shadeSaturationValue);
-    
+
+    // Helios Preset
+    const heliosPresetCheckbox = document.getElementById('helios-preset');
+    const spectrumTintShadeSliders = document.getElementById('spectrum-tint-shade-sliders');
+    const heliosValues = { tintLightness: 4, tintSaturation: 51, shadeLightness: 7, shadeSaturation: 28 };
+    let savedSliderValues = null;
+
+    heliosPresetCheckbox.onchange = () => {
+      if (heliosPresetCheckbox.checked) {
+        savedSliderValues = {
+          tintLightness: tintLightnessSlider.value,
+          tintSaturation: tintSaturationSlider.value,
+          shadeLightness: shadeLightnessSlider.value,
+          shadeSaturation: shadeSaturationSlider.value
+        };
+        tintLightnessSlider.value = heliosValues.tintLightness;
+        tintLightnessValue.value = heliosValues.tintLightness;
+        tintSaturationSlider.value = heliosValues.tintSaturation;
+        tintSaturationValue.value = heliosValues.tintSaturation;
+        shadeLightnessSlider.value = heliosValues.shadeLightness;
+        shadeLightnessValue.value = heliosValues.shadeLightness;
+        shadeSaturationSlider.value = heliosValues.shadeSaturation;
+        shadeSaturationValue.value = heliosValues.shadeSaturation;
+        spectrumTintShadeSliders.style.display = 'none';
+      } else {
+        if (savedSliderValues) {
+          tintLightnessSlider.value = savedSliderValues.tintLightness;
+          tintLightnessValue.value = savedSliderValues.tintLightness;
+          tintSaturationSlider.value = savedSliderValues.tintSaturation;
+          tintSaturationValue.value = savedSliderValues.tintSaturation;
+          shadeLightnessSlider.value = savedSliderValues.shadeLightness;
+          shadeLightnessValue.value = savedSliderValues.shadeLightness;
+          shadeSaturationSlider.value = savedSliderValues.shadeSaturation;
+          shadeSaturationValue.value = savedSliderValues.shadeSaturation;
+        }
+        spectrumTintShadeSliders.style.display = 'block';
+      }
+    };
+
     const genCollectionSelect = document.getElementById('gen-collection');
     const generateButton = document.getElementById('generate');
     const generateMessageDiv = document.getElementById('generate-message');
@@ -954,13 +1072,87 @@
     const singleModeFields = document.getElementById('single-mode-fields');
     const singleModePreview = document.getElementById('single-mode-preview');
     const bulkHint = document.getElementById('bulk-hint');
+    const bulkSlidersDiv = document.getElementById('bulk-sliders');
+
+    // Bulk slider elements
+    const bulkKeyLightnessSlider = document.getElementById('bulk-key-lightness');
+    const bulkKeyLightnessValue = document.getElementById('bulk-key-lightness-value');
+    const bulkKeySaturationSlider = document.getElementById('bulk-key-saturation');
+    const bulkKeySaturationValue = document.getElementById('bulk-key-saturation-value');
+    const bulkTintLightnessSlider = document.getElementById('bulk-tint-lightness');
+    const bulkTintLightnessValue = document.getElementById('bulk-tint-lightness-value');
+    const bulkTintSaturationSlider = document.getElementById('bulk-tint-saturation');
+    const bulkTintSaturationValue = document.getElementById('bulk-tint-saturation-value');
+    const bulkShadeLightnessSlider = document.getElementById('bulk-shade-lightness');
+    const bulkShadeLightnessValue = document.getElementById('bulk-shade-lightness-value');
+    const bulkShadeSaturationSlider = document.getElementById('bulk-shade-saturation');
+    const bulkShadeSaturationValue = document.getElementById('bulk-shade-saturation-value');
+    const bulkKeyLightnessLabel = document.getElementById('bulk-key-lightness-label');
+    const bulkKeySaturationLabel = document.getElementById('bulk-key-saturation-label');
+
+    syncSlider(bulkKeyLightnessSlider, bulkKeyLightnessValue);
+    syncSlider(bulkKeySaturationSlider, bulkKeySaturationValue);
+    syncSlider(bulkTintLightnessSlider, bulkTintLightnessValue);
+    syncSlider(bulkTintSaturationSlider, bulkTintSaturationValue);
+    syncSlider(bulkShadeLightnessSlider, bulkShadeLightnessValue);
+    syncSlider(bulkShadeSaturationSlider, bulkShadeSaturationValue);
+
+    // Bulk Helios Preset
+    const bulkHeliosCheckbox = document.getElementById('bulk-helios-preset');
+    const bulkTintShadeSliders = document.getElementById('bulk-tint-shade-sliders');
+    let savedBulkSliderValues = null;
+
+    bulkHeliosCheckbox.onchange = () => {
+      if (bulkHeliosCheckbox.checked) {
+        savedBulkSliderValues = {
+          tintLightness: bulkTintLightnessSlider.value,
+          tintSaturation: bulkTintSaturationSlider.value,
+          shadeLightness: bulkShadeLightnessSlider.value,
+          shadeSaturation: bulkShadeSaturationSlider.value
+        };
+        bulkTintLightnessSlider.value = heliosValues.tintLightness;
+        bulkTintLightnessValue.value = heliosValues.tintLightness;
+        bulkTintSaturationSlider.value = heliosValues.tintSaturation;
+        bulkTintSaturationValue.value = heliosValues.tintSaturation;
+        bulkShadeLightnessSlider.value = heliosValues.shadeLightness;
+        bulkShadeLightnessValue.value = heliosValues.shadeLightness;
+        bulkShadeSaturationSlider.value = heliosValues.shadeSaturation;
+        bulkShadeSaturationValue.value = heliosValues.shadeSaturation;
+        bulkTintShadeSliders.style.display = 'none';
+      } else {
+        if (savedBulkSliderValues) {
+          bulkTintLightnessSlider.value = savedBulkSliderValues.tintLightness;
+          bulkTintLightnessValue.value = savedBulkSliderValues.tintLightness;
+          bulkTintSaturationSlider.value = savedBulkSliderValues.tintSaturation;
+          bulkTintSaturationValue.value = savedBulkSliderValues.tintSaturation;
+          bulkShadeLightnessSlider.value = savedBulkSliderValues.shadeLightness;
+          bulkShadeLightnessValue.value = savedBulkSliderValues.shadeLightness;
+          bulkShadeSaturationSlider.value = savedBulkSliderValues.shadeSaturation;
+          bulkShadeSaturationValue.value = savedBulkSliderValues.shadeSaturation;
+        }
+        bulkTintShadeSliders.style.display = 'block';
+      }
+    };
+
+    function updateBulkSliderLabels() {
+      const isLight = (selectedMode === 'Light' || selectedMode === 'IC - Light');
+      const side = isLight ? 'Dark' : 'Light';
+      bulkKeyLightnessLabel.textContent = `${side} Key Color Lightness (500)`;
+      bulkKeySaturationLabel.textContent = `${side} Key Color Saturation (500)`;
+    }
+
+    const bulkApplyRow = document.getElementById('bulk-apply-row');
+    const bulkApplyCheckbox = document.getElementById('bulk-apply-to-layers');
 
     bulkModeCheckbox.onchange = () => {
       const isBulk = bulkModeCheckbox.checked;
       singleModeFields.style.display = isBulk ? 'none' : 'block';
       singleModePreview.style.display = isBulk ? 'none' : 'block';
       bulkHint.style.display = isBulk ? 'block' : 'none';
+      bulkSlidersDiv.style.display = isBulk ? 'block' : 'none';
+      bulkApplyRow.style.display = isBulk ? 'flex' : 'none';
       generateModesButton.textContent = isBulk ? 'Generate from Selection' : 'Generate Mode Colors';
+      if (isBulk) updateBulkSliderLabels();
     };
 
     // Mirror IC modes checkbox triggers preview update
@@ -1005,6 +1197,7 @@
         btn.classList.add('active');
         selectedMode = btn.dataset.mode;
         updateColorPreview();
+        updateBulkSliderLabels();
       };
     });
 
@@ -1558,12 +1751,34 @@
         const mirrorIc = mirrorIcModesCheckbox.checked;
         const selectedModes = getSelectedOutputModes();
         const collectionId = modeCollectionSelect.value || null;
+        const bulkKeyL = parseInt(bulkKeyLightnessSlider.value);
+        const bulkKeyS = parseInt(bulkKeySaturationSlider.value);
+        const isLightInput = (selectedMode === 'Light' || selectedMode === 'IC - Light');
 
         const entries = fills.map(f => {
           const colors = generateModeColors(f.hex, selectedMode, f.opacity, mirrorIc);
+          if (!colors) return null;
           const opacities = calculateModeOpacities(f.opacity, mirrorIc);
-          return { varName: f.name, colors, opacities };
-        }).filter(e => e.colors !== null);
+
+          // Apply key L/S slider adjustments to counterpart mode colors
+          if (bulkKeyL !== 0 || bulkKeyS !== 0) {
+            if (isLightInput) {
+              colors.Dark = adjustKeyColor(colors.Dark, bulkKeyL, bulkKeyS);
+              colors['IC - Dark'] = adjustKeyColor(colors['IC - Dark'], bulkKeyL, bulkKeyS);
+            } else {
+              colors.Light = adjustKeyColor(colors.Light, bulkKeyL, bulkKeyS);
+              colors['IC - Light'] = adjustKeyColor(colors['IC - Light'], bulkKeyL, bulkKeyS);
+            }
+          }
+
+          return {
+            varName: f.name,
+            nodeId: f.nodeId,
+            colors,
+            opacities,
+            boundVariable: f.boundVariable || null
+          };
+        }).filter(e => e !== null);
 
         if (entries.length === 0) {
           showMessage(modemakerMessageDiv, 'Could not process any colors from selection', 'error');
@@ -1575,7 +1790,13 @@
             type: 'generate-bulk-mode-colors',
             collectionId,
             entries,
-            selectedModes
+            selectedModes,
+            selectedInputMode: selectedMode,
+            applyToLayers: bulkApplyCheckbox.checked,
+            tintLightness: parseInt(bulkTintLightnessSlider.value),
+            tintSaturation: parseInt(bulkTintSaturationSlider.value),
+            shadeLightness: parseInt(bulkShadeLightnessSlider.value),
+            shadeSaturation: parseInt(bulkShadeSaturationSlider.value),
           }
         }, '*');
       }
