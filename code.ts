@@ -1,4 +1,4 @@
-figma.showUI(__html__, { width: 420, height: 820 });
+figma.showUI(__html__, { width: 420, height: 820, themeColors: true });
 
 // Color conversion helpers for Delta E calculation
 function rgbToLab(r: number, g: number, b: number): { L: number; a: number; b: number } {
