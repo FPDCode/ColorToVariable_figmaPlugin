@@ -1315,7 +1315,7 @@
       return rgbToHex(adjusted.r, adjusted.g, adjusted.b);
     }
 
-    function generateModeColors(inputHex, inputMode, baseOpacity = 100, mirrorIc = false) {
+    function generateModeColors(inputHex, inputMode, baseOpacity = 100, mirrorIc = false, heliosMode = false) {
       const rgb = hexToRgb(inputHex);
       if (!rgb) return null;
 
@@ -1357,9 +1357,14 @@
           results['IC - Light'] = results.Light;
           results['IC - Dark'] = results.Dark;
         } else {
-          results['IC - Light'] = hslToRgb(lightHsl.h, lightHsl.s, Math.max(0, lightHsl.l - 0.05));
+          const icLightLDelta = heliosMode ? -(lightHsl.l * 0.25) : -0.05;
+          results['IC - Light'] = hslToRgb(lightHsl.h, lightHsl.s, Math.max(0, lightHsl.l + icLightLDelta));
           const darkL = 1 - lightHsl.l;
-          results['IC - Dark'] = hslToRgb(lightHsl.h, lightHsl.s, Math.min(1, darkL + 0.05));
+          if (heliosMode) {
+            results['IC - Dark'] = hslToRgb(lightHsl.h, Math.min(1, lightHsl.s + 0.06), Math.min(1, darkL - 0.01));
+          } else {
+            results['IC - Dark'] = hslToRgb(lightHsl.h, lightHsl.s, Math.min(1, darkL + 0.05));
+          }
         }
       } else {
         results.Light = lightRgb;
@@ -1368,8 +1373,17 @@
           results['IC - Light'] = results.Light;
           results['IC - Dark'] = results.Dark;
         } else {
-          results['IC - Light'] = adjustHsl(lightRgb.r, lightRgb.g, lightRgb.b, -0.12, 0.08);
-          results['IC - Dark'] = adjustHsl(lightRgb.r, lightRgb.g, lightRgb.b, 0.15, 0);
+          if (heliosMode) {
+            const lHsl = rgbToHsl(lightRgb.r, lightRgb.g, lightRgb.b);
+            results['IC - Light'] = adjustHsl(lightRgb.r, lightRgb.g, lightRgb.b, -(lHsl.l * 0.25), 0.08);
+          } else {
+            results['IC - Light'] = adjustHsl(lightRgb.r, lightRgb.g, lightRgb.b, -0.12, 0.08);
+          }
+          if (heliosMode) {
+            results['IC - Dark'] = adjustHsl(lightRgb.r, lightRgb.g, lightRgb.b, 0.08, 0.06);
+          } else {
+            results['IC - Dark'] = adjustHsl(lightRgb.r, lightRgb.g, lightRgb.b, 0.15, 0);
+          }
         }
       }
 
@@ -1755,8 +1769,9 @@
         const bulkKeyS = parseInt(bulkKeySaturationSlider.value);
         const isLightInput = (selectedMode === 'Light' || selectedMode === 'IC - Light');
 
+        const bulkHelios = bulkHeliosCheckbox.checked;
         const entries = fills.map(f => {
-          const colors = generateModeColors(f.hex, selectedMode, f.opacity, mirrorIc);
+          const colors = generateModeColors(f.hex, selectedMode, f.opacity, mirrorIc, bulkHelios);
           if (!colors) return null;
           const opacities = calculateModeOpacities(f.opacity, mirrorIc);
 
