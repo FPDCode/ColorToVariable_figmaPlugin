@@ -629,12 +629,12 @@
     <div class="switch-row">
       <span class="switch-label">Helios Preset</span>
       <label class="switch">
-        <input type="checkbox" id="helios-preset">
+        <input type="checkbox" id="helios-preset" checked>
         <span class="slider"></span>
       </label>
     </div>
 
-    <div id="spectrum-tint-shade-sliders">
+    <div id="spectrum-tint-shade-sliders" style="display:none">
       <div class="form-group">
         <label>Light Lightness (000–400)</label>
         <div class="slider-row">
@@ -698,11 +698,11 @@
     <div class="switch-row">
       <span class="switch-label">Bulk from Selection</span>
       <label class="switch">
-        <input type="checkbox" id="bulk-mode">
+        <input type="checkbox" id="bulk-mode" checked>
         <span class="slider"></span>
       </label>
     </div>
-    <div class="hint" id="bulk-hint" style="display:none">
+    <div class="hint" id="bulk-hint" style="display:block">
       Reads fills from selected layers. Layer names become variable names.
       If fills use existing variables, aliases will be created automatically.
     </div>
@@ -729,7 +729,7 @@
       </div>
     </div>
 
-    <div id="bulk-sliders" style="display:none">
+    <div id="bulk-sliders" style="display:block">
       <div class="form-group" style="margin-top: 16px;">
         <label id="bulk-key-lightness-label">Dark Key Color Lightness (500)</label>
         <div class="slider-row">
@@ -750,12 +750,12 @@
       <div class="switch-row">
         <span class="switch-label">Helios Preset</span>
         <label class="switch">
-          <input type="checkbox" id="bulk-helios-preset">
+          <input type="checkbox" id="bulk-helios-preset" checked>
           <span class="slider"></span>
         </label>
       </div>
 
-      <div id="bulk-tint-shade-sliders">
+      <div id="bulk-tint-shade-sliders" style="display:none">
         <div class="form-group">
           <label>Light Lightness (000–400)</label>
           <div class="slider-row">
@@ -788,7 +788,7 @@
       </div>
     </div>
 
-    <div id="single-mode-fields">
+    <div id="single-mode-fields" style="display:none">
       <div class="form-group">
         <label for="hex-input">Hex Color</label>
         <div class="hex-input-row">
@@ -830,7 +830,7 @@
       </label>
     </div>
 
-    <div id="single-mode-preview">
+    <div id="single-mode-preview" style="display:none">
       <div class="preview-grid" id="preview-grid">
         <div class="preview-swatch" id="preview-light" style="background:var(--color-border-light)"><span>Light</span></div>
         <div class="preview-swatch" id="preview-dark" style="background:var(--color-border-light)"><span>Dark</span></div>
@@ -839,7 +839,7 @@
       </div>
     </div>
 
-    <div id="bulk-apply-row" class="switch-row" style="display:none">
+    <div id="bulk-apply-row" class="switch-row" style="display:flex">
       <span class="switch-label">Apply to selected layers</span>
       <label class="switch">
         <input type="checkbox" id="bulk-apply-to-layers">
@@ -849,7 +849,7 @@
 
     </div>
     <div class="tab-footer">
-      <button id="generate-modes" class="primary">Generate Mode Colors</button>
+      <button id="generate-modes" class="primary">Generate from Selection</button>
       <div id="modemaker-message" class="message"></div>
     </div>
   </div>
@@ -1154,6 +1154,11 @@
       generateModesButton.textContent = isBulk ? 'Generate from Selection' : 'Generate Mode Colors';
       if (isBulk) updateBulkSliderLabels();
     };
+
+    // Fire defaults on init
+    heliosPresetCheckbox.onchange();
+    bulkModeCheckbox.onchange();
+    bulkHeliosCheckbox.onchange();
 
     // Mirror IC modes checkbox triggers preview update
     mirrorIcModesCheckbox.onchange = () => {

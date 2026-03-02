@@ -1042,14 +1042,18 @@ figma.ui.onmessage = async (msg) => {
               targetVarName = `${specGroup}/${specType}/400`;
             }
           } else {
-            const isLightOutput = (modeName === 'Light' || modeName === 'IC - Light');
-            const isOriginalLightSide = pos < 500;
+            const isInputLight = (selectedInputMode === 'Light' || selectedInputMode === 'IC - Light');
+            const lightPos = isInputLight ? pos : (1000 - pos);
+            const darkPos = isInputLight ? (1000 - pos) : pos;
+            const icLightPos = Math.min(1000, lightPos + 100);
+            const icDarkPos = Math.max(0, darkPos - 100);
+
             let targetPos: number;
-            if (isLightOutput) {
-              targetPos = isOriginalLightSide ? pos : (1000 - pos);
-            } else {
-              targetPos = isOriginalLightSide ? (1000 - pos) : pos;
-            }
+            if (modeName === 'Light') targetPos = lightPos;
+            else if (modeName === 'Dark') targetPos = darkPos;
+            else if (modeName === 'IC - Light') targetPos = icLightPos;
+            else targetPos = icDarkPos;
+
             targetVarName = `${specGroup}/${specType}/${targetPos.toString().padStart(3, '0')}`;
           }
 
