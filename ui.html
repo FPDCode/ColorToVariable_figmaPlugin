@@ -5,12 +5,18 @@
     * {
       box-sizing: border-box;
     }
-    body {
+    html, body {
       margin: 0;
       padding: 0;
+      height: 100%;
+      overflow: hidden;
       font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
       font-size: 12px;
       color: #333;
+    }
+    body {
+      display: flex;
+      flex-direction: column;
     }
     .tabs {
       display: flex;
@@ -36,23 +42,40 @@
       color: #18a0fb;
     }
     .tab-content {
-      padding: 16px;
+      padding: 0;
       display: none;
+      flex-direction: column;
+      flex: 1;
+      min-height: 0;
     }
     .tab-content.active {
-      display: block;
+      display: flex;
+    }
+    .tab-scroll {
+      flex: 1;
+      overflow-y: auto;
+      padding: 12px 16px;
+    }
+    .tab-footer {
+      padding: 12px 16px;
+      border-top: 1px solid #e0e0e0;
+      background: #fff;
+      flex-shrink: 0;
     }
     h3 {
-      margin: 0 0 12px 0;
+      margin: 0 0 8px 0;
       font-size: 13px;
       font-weight: 600;
     }
     .form-group {
       margin-bottom: 16px;
     }
+    .form-group:last-child {
+      margin-bottom: 0;
+    }
     label {
       display: block;
-      margin-bottom: 8px;
+      margin-bottom: 6px;
       font-weight: 500;
     }
     select {
@@ -387,6 +410,77 @@
       background: #18a0fb;
       cursor: pointer;
     }
+    .toggle-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .toggle-switch {
+      position: relative;
+      display: inline-block;
+      width: 36px;
+      height: 20px;
+      flex-shrink: 0;
+    }
+    .toggle-switch input {
+      opacity: 0;
+      width: 0;
+      height: 0;
+    }
+    .toggle-slider {
+      position: absolute;
+      inset: 0;
+      background: #b0b0b0;
+      border-radius: 20px;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .toggle-slider::before {
+      content: '';
+      position: absolute;
+      width: 16px;
+      height: 16px;
+      left: 2px;
+      bottom: 2px;
+      background: #fff;
+      border-radius: 50%;
+      transition: transform 0.2s;
+    }
+    .toggle-switch input:checked + .toggle-slider {
+      background: #18a0fb;
+    }
+    .toggle-switch input:checked + .toggle-slider::before {
+      transform: translateX(16px);
+    }
+    .slider-separator {
+      border: none;
+      border-top: 1px solid #e0e0e0;
+      margin: 32px 0;
+    }
+    .slider-input {
+      width: 44px;
+      padding: 2px 4px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      font-size: 11px;
+      text-align: center;
+      background: #fff;
+      color: #333;
+      -moz-appearance: textfield;
+    }
+    .slider-input::-webkit-outer-spin-button,
+    .slider-input::-webkit-inner-spin-button {
+      -webkit-appearance: none;
+      margin: 0;
+    }
+    input[type="range"]:disabled {
+      opacity: 0.35;
+      pointer-events: none;
+    }
+    input[type="range"]:disabled + .slider-input {
+      opacity: 0.35;
+      pointer-events: none;
+    }
     .slider-row {
       display: flex;
       align-items: center;
@@ -414,6 +508,7 @@
 
   <!-- Tab 1: Spectrum -->
   <div id="create-tab" class="tab-content">
+    <div class="tab-scroll">
     <h3>Selection → Color Scale</h3>
     <div class="form-group">
       <label for="spectrum-collection">Collection</label>
@@ -445,57 +540,71 @@
       </div>
     </div>
 
-    <div class="form-group">
-      <label>Key Color Lightness (500)</label>
+    <div class="form-group" style="margin-top: 32px;">
+      <label id="key-lightness-label">Dark Key Color Lightness (500)</label>
       <div class="slider-row">
         <input type="range" id="key-lightness" min="-50" max="50" value="0">
-        <span class="slider-value" id="key-lightness-value">0</span>
+        <input type="number" class="slider-input" id="key-lightness-value" min="-50" max="50" value="0">
       </div>
     </div>
     <div class="form-group">
-      <label>Key Color Saturation (500)</label>
+      <label id="key-saturation-label">Dark Key Color Saturation (500)</label>
       <div class="slider-row">
         <input type="range" id="key-saturation" min="-50" max="50" value="0">
-        <span class="slider-value" id="key-saturation-value">0</span>
+        <input type="number" class="slider-input" id="key-saturation-value" min="-50" max="50" value="0">
       </div>
     </div>
 
+    <hr class="slider-separator">
+
     <div class="form-group">
-      <label>Tint Lightness (000–400)</label>
+      <label>Light Lightness (000–400)</label>
       <div class="slider-row">
         <input type="range" id="tint-lightness" min="0" max="100" value="50">
-        <span class="slider-value" id="tint-lightness-value">50%</span>
+        <input type="number" class="slider-input" id="tint-lightness-value" min="0" max="100" value="50">
       </div>
     </div>
     <div class="form-group">
-      <label>Tint Saturation (000–400)</label>
+      <label>Light Saturation (000–400)</label>
       <div class="slider-row">
         <input type="range" id="tint-saturation" min="0" max="100" value="50">
-        <span class="slider-value" id="tint-saturation-value">50%</span>
+        <input type="number" class="slider-input" id="tint-saturation-value" min="0" max="100" value="50">
       </div>
     </div>
 
     <div class="form-group">
-      <label>Shade Lightness (600–1000)</label>
+      <label>Dark Lightness (600–1000)</label>
       <div class="slider-row">
         <input type="range" id="shade-lightness" min="0" max="100" value="50">
-        <span class="slider-value" id="shade-lightness-value">50%</span>
+        <input type="number" class="slider-input" id="shade-lightness-value" min="0" max="100" value="50">
       </div>
     </div>
     <div class="form-group">
-      <label>Shade Saturation (600–1000)</label>
+      <label>Dark Saturation (600–1000)</label>
       <div class="slider-row">
         <input type="range" id="shade-saturation" min="0" max="100" value="50">
-        <span class="slider-value" id="shade-saturation-value">50%</span>
+        <input type="number" class="slider-input" id="shade-saturation-value" min="0" max="100" value="50">
       </div>
     </div>
 
-    <button id="spectrum-generate" class="primary">Generate Spectrum</button>
-    <div id="spectrum-message" class="message"></div>
+    <div class="form-group toggle-row">
+      <label for="input-only">Output input side only</label>
+      <label class="toggle-switch">
+        <input type="checkbox" id="input-only">
+        <span class="toggle-slider"></span>
+      </label>
+    </div>
+
+    </div>
+    <div class="tab-footer">
+      <button id="spectrum-generate" class="primary">Generate Spectrum</button>
+      <div id="spectrum-message" class="message"></div>
+    </div>
   </div>
 
   <!-- Tab 2: Mode Maker -->
   <div id="modemaker-tab" class="tab-content active">
+    <div class="tab-scroll">
     <h3>Hex → Light/Dark Modes</h3>
     
     <div class="form-group">
@@ -589,12 +698,16 @@
       </div>
     </div>
 
-    <button id="generate-modes" class="primary" style="margin-top:12px">Generate Mode Colors</button>
-    <div id="modemaker-message" class="message"></div>
+    </div>
+    <div class="tab-footer">
+      <button id="generate-modes" class="primary">Generate Mode Colors</button>
+      <div id="modemaker-message" class="message"></div>
+    </div>
   </div>
 
   <!-- Tab 6: Connect Colors -->
   <div id="connect-tab" class="tab-content">
+    <div class="tab-scroll">
     <h3>Auto-Connect Colors</h3>
     <div class="form-group">
       <label for="connect-collection">Match Against Collection</label>
@@ -611,14 +724,18 @@
       </label>
     </div>
     <div class="hint">When ON, replaces existing variable bindings with local matches</div>
-    <button id="scan-colors" class="primary" disabled>Scan Colors</button>
-    <div id="connect-message" class="message"></div>
     <div id="scan-stats" class="scan-stats" style="display:none"></div>
     <div id="suggestions-list" class="suggestions-list"></div>
+    </div>
+    <div class="tab-footer">
+      <button id="scan-colors" class="primary" disabled>Scan Colors</button>
+      <div id="connect-message" class="message"></div>
+    </div>
   </div>
 
   <!-- Tab 4: Generate Layers -->
   <div id="generate-tab" class="tab-content">
+    <div class="tab-scroll">
     <h3>Variables → Layers</h3>
     <div class="form-group">
       <label for="gen-collection">Collection</label>
@@ -641,8 +758,11 @@
         <span class="slider"></span>
       </label>
     </div>
-    <button id="generate" class="primary" disabled>Generate Layers</button>
-    <div id="generate-message" class="message"></div>
+    </div>
+    <div class="tab-footer">
+      <button id="generate" class="primary" disabled>Generate Layers</button>
+      <div id="generate-message" class="message"></div>
+    </div>
   </div>
 
   <script>
@@ -676,35 +796,58 @@
     const shadeLightnessValue = document.getElementById('shade-lightness-value');
     const shadeSaturationSlider = document.getElementById('shade-saturation');
     const shadeSaturationValue = document.getElementById('shade-saturation-value');
+    const inputOnlyToggle = document.getElementById('input-only');
     let spectrumSelectedMode = 'Light';
     let pendingSpectrumRequest = false;
+
+    const keyLightnessLabel = document.getElementById('key-lightness-label');
+    const keySaturationLabel = document.getElementById('key-saturation-label');
+
+    function updateSliderStates() {
+      const on = inputOnlyToggle.checked;
+      const isLight = (spectrumSelectedMode === 'Light' || spectrumSelectedMode === 'IC - Light');
+      const side = isLight ? 'Dark' : 'Light';
+
+      keyLightnessLabel.textContent = `${side} Key Color Lightness (500)`;
+      keySaturationLabel.textContent = `${side} Key Color Saturation (500)`;
+
+      keyLightnessSlider.disabled = on;
+      keySaturationSlider.disabled = on;
+      tintLightnessSlider.disabled = on && !isLight;
+      tintSaturationSlider.disabled = on && !isLight;
+      shadeLightnessSlider.disabled = on && isLight;
+      shadeSaturationSlider.disabled = on && isLight;
+    }
+
+    inputOnlyToggle.onchange = updateSliderStates;
 
     spectrumModeBtns.forEach(btn => {
       btn.onclick = () => {
         spectrumModeBtns.forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
         spectrumSelectedMode = btn.dataset.mode;
+        updateSliderStates();
       };
     });
 
-    keyLightnessSlider.oninput = () => {
-      keyLightnessValue.textContent = keyLightnessSlider.value;
-    };
-    keySaturationSlider.oninput = () => {
-      keySaturationValue.textContent = keySaturationSlider.value;
-    };
-    tintLightnessSlider.oninput = () => {
-      tintLightnessValue.textContent = tintLightnessSlider.value + '%';
-    };
-    tintSaturationSlider.oninput = () => {
-      tintSaturationValue.textContent = tintSaturationSlider.value + '%';
-    };
-    shadeLightnessSlider.oninput = () => {
-      shadeLightnessValue.textContent = shadeLightnessSlider.value + '%';
-    };
-    shadeSaturationSlider.oninput = () => {
-      shadeSaturationValue.textContent = shadeSaturationSlider.value + '%';
-    };
+    updateSliderStates();
+
+    function syncSlider(slider, input) {
+      slider.oninput = () => { input.value = slider.value; };
+      input.oninput = () => {
+        let v = parseInt(input.value);
+        if (isNaN(v)) return;
+        v = Math.max(parseInt(slider.min), Math.min(parseInt(slider.max), v));
+        slider.value = v;
+        input.value = v;
+      };
+    }
+    syncSlider(keyLightnessSlider, keyLightnessValue);
+    syncSlider(keySaturationSlider, keySaturationValue);
+    syncSlider(tintLightnessSlider, tintLightnessValue);
+    syncSlider(tintSaturationSlider, tintSaturationValue);
+    syncSlider(shadeLightnessSlider, shadeLightnessValue);
+    syncSlider(shadeSaturationSlider, shadeSaturationValue);
     
     const genCollectionSelect = document.getElementById('gen-collection');
     const generateButton = document.getElementById('generate');
@@ -1330,7 +1473,9 @@
               tintLightness: parseInt(tintLightnessSlider.value),
               tintSaturation: parseInt(tintSaturationSlider.value),
               shadeLightness: parseInt(shadeLightnessSlider.value),
-              shadeSaturation: parseInt(shadeSaturationSlider.value)
+              shadeSaturation: parseInt(shadeSaturationSlider.value),
+              inputOnly: document.getElementById('input-only').checked,
+              inputMode: spectrumSelectedMode
             }
           }, '*');
           return;

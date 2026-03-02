@@ -1,4 +1,4 @@
-figma.showUI(__html__, { width: 420, height: 720 });
+figma.showUI(__html__, { width: 420, height: 820 });
 
 // Color conversion helpers for Delta E calculation
 function rgbToLab(r: number, g: number, b: number): { L: number; a: number; b: number } {
@@ -57,6 +57,9 @@ figma.ui.onmessage = async (msg) => {
     const tintSaturation: number = msg.tintSaturation ?? 50;
     const shadeLightness: number = msg.shadeLightness ?? 50;
     const shadeSaturation: number = msg.shadeSaturation ?? 50;
+    const inputOnly: boolean = msg.inputOnly ?? false;
+    const inputMode: string = msg.inputMode ?? 'Light';
+    const isLightInput = (inputMode === 'Light' || inputMode === 'IC - Light');
 
     let collection: VariableCollection;
     const collections = await figma.variables.getLocalVariableCollectionsAsync();
@@ -138,9 +141,11 @@ figma.ui.onmessage = async (msg) => {
       if (amount === 0) return c;
       const hsl = rgbToHsl(c);
       const lightDampen = 1.0 - (tintLightness / 100) * 0.7;
-      const satDecay = 1.0 * (1 - tintSaturation / 100);
+      const satFactor = (tintSaturation / 50) - 1;
       const newL = hsl.l + (1 - hsl.l) * amount * lightDampen;
-      const newS = hsl.s * (1 - amount * satDecay);
+      const newS = satFactor >= 0
+        ? Math.min(1, hsl.s * (1 + amount * satFactor * 1.5))
+        : hsl.s * (1 + amount * satFactor);
       return hslToRgb(hsl.h, Math.max(0, newS), Math.min(1, newL));
     }
 
@@ -148,10 +153,12 @@ figma.ui.onmessage = async (msg) => {
       if (amount === 0) return c;
       const hsl = rgbToHsl(c);
       const darkDampen = 1.0 - (shadeLightness / 100) * 0.7;
-      const satBoost = 0.8 * (shadeSaturation / 100);
+      const satFactor = (shadeSaturation / 50) - 1;
       const newL = hsl.l * (1 - amount * darkDampen);
-      const newS = Math.min(1, hsl.s * (1 + amount * satBoost));
-      return hslToRgb(hsl.h, newS, Math.max(0, newL));
+      const newS = satFactor >= 0
+        ? Math.min(1, hsl.s * (1 + amount * satFactor * 1.5))
+        : hsl.s * (1 + amount * satFactor);
+      return hslToRgb(hsl.h, Math.max(0, newS), Math.max(0, newL));
     }
 
     function getFalloffAmount(steps: number): number {
@@ -256,28 +263,32 @@ figma.ui.onmessage = async (msg) => {
       const lightKeys = parsedKeys.filter(k => k.mode === 'Light').sort((a, b) => a.position - b.position);
       const darkKeys = parsedKeys.filter(k => k.mode === 'Dark').sort((a, b) => a.position - b.position);
 
-      const lightPositions = [0, 100, 200, 300, 400, 500];
-      const light500Color = get500KeyColor(lightKeys);
+      if (!inputOnly || isLightInput) {
+        const lightPositions = [0, 100, 200, 300, 400, 500];
+        const light500Color = get500KeyColor(lightKeys);
 
-      for (const pos of lightPositions) {
-        const posStr = pos.toString().padStart(3, '0');
-        const posSuffix = pos === 500 ? `${posStr} (Light)` : posStr;
+        for (const pos of lightPositions) {
+          const posStr = pos.toString().padStart(3, '0');
+          const posSuffix = pos === 500 ? `${posStr} (Light)` : posStr;
 
-        const opaqueColor = getColorAtPosition(lightKeys, pos, 0, 500, true);
-        createOrUpdateVariable(`${groupName}/Opaque/${posSuffix}`, { r: opaqueColor.r, g: opaqueColor.g, b: opaqueColor.b, a: 1 });
-        createOrUpdateVariable(`${groupName}/Opacity/${posSuffix}`, { r: light500Color.r, g: light500Color.g, b: light500Color.b, a: getAlphaForPosition(pos) });
+          const opaqueColor = getColorAtPosition(lightKeys, pos, 0, 500, true);
+          createOrUpdateVariable(`${groupName}/Opaque/${posSuffix}`, { r: opaqueColor.r, g: opaqueColor.g, b: opaqueColor.b, a: 1 });
+          createOrUpdateVariable(`${groupName}/Opacity/${posSuffix}`, { r: light500Color.r, g: light500Color.g, b: light500Color.b, a: getAlphaForPosition(pos) });
+        }
       }
 
-      const darkPositions = [500, 600, 700, 800, 900, 1000];
-      const dark500Color = get500KeyColor(darkKeys);
+      if (!inputOnly || !isLightInput) {
+        const darkPositions = [500, 600, 700, 800, 900, 1000];
+        const dark500Color = get500KeyColor(darkKeys);
 
-      for (const pos of darkPositions) {
-        const posStr = pos.toString().padStart(3, '0');
-        const posSuffix = pos === 500 ? `${posStr} (Dark)` : posStr;
+        for (const pos of darkPositions) {
+          const posStr = pos.toString().padStart(3, '0');
+          const posSuffix = pos === 500 ? `${posStr} (Dark)` : posStr;
 
-        const opaqueColor = getColorAtPosition(darkKeys, pos, 500, 1000, false);
-        createOrUpdateVariable(`${groupName}/Opaque/${posSuffix}`, { r: opaqueColor.r, g: opaqueColor.g, b: opaqueColor.b, a: 1 });
-        createOrUpdateVariable(`${groupName}/Opacity/${posSuffix}`, { r: dark500Color.r, g: dark500Color.g, b: dark500Color.b, a: getAlphaForPosition(pos) });
+          const opaqueColor = getColorAtPosition(darkKeys, pos, 500, 1000, false);
+          createOrUpdateVariable(`${groupName}/Opaque/${posSuffix}`, { r: opaqueColor.r, g: opaqueColor.g, b: opaqueColor.b, a: 1 });
+          createOrUpdateVariable(`${groupName}/Opacity/${posSuffix}`, { r: dark500Color.r, g: dark500Color.g, b: dark500Color.b, a: getAlphaForPosition(pos) });
+        }
       }
     }
 
@@ -545,7 +556,7 @@ figma.ui.onmessage = async (msg) => {
   if (msg.type === 'connect-color') {
     const { nodeId, property, varId } = msg;
     
-    const node = figma.getNodeById(nodeId) as SceneNode;
+    const node = await figma.getNodeByIdAsync(nodeId) as SceneNode;
     if (!node) {
       figma.ui.postMessage({ type: 'connect-error', message: 'Node not found' });
       return;
