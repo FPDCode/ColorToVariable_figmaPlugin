@@ -1,4 +1,4 @@
-figma.showUI(__html__, { width: 420, height: 944, themeColors: true });
+figma.showUI(__html__, { width: 420, height: 996, themeColors: true });
 
 // Color conversion helpers for Delta E calculation
 function rgbToLab(r: number, g: number, b: number): { L: number; a: number; b: number } {
@@ -195,6 +195,24 @@ function getAlphaForPosition(pos: number): number {
   return alphaMap[pos] ?? 1.0;
 }
 
+function getHeliosAlphaForPosition(pos: number): number {
+  const alphaMap: { [key: number]: number } = {
+    0: 0.08, 100: 0.16, 200: 0.25, 300: 0.35, 400: 0.44, 500: 1.0,
+    600: 0.44, 700: 0.35, 800: 0.25, 900: 0.16, 1000: 0.08
+  };
+  return alphaMap[pos] ?? 1.0;
+}
+
+function heliosAdjustOpacityColor(color: RGB, isDarkSide: boolean): RGB {
+  const hsl = rgbToHsl(color);
+  const compression = isDarkSide ? 0.88 : 0.71;
+  const lDist = hsl.l - 0.5;
+  const sDist = 1.0 - hsl.s;
+  const newL = 0.5 + lDist * (1 - compression);
+  const newS = Math.min(1, hsl.s + sDist * compression);
+  return hslToRgb(hsl.h, newS, newL);
+}
+
 // Spectrum variable name pattern: "GroupName/Opaque|Opacity/Position (Light|Dark)?"
 const SPECTRUM_VAR_REGEX = /^(.+)\/(Opaque|Opacity)\/(\d{3,4})(?:\s*\((Light|Dark)\))?$/;
 
@@ -218,7 +236,20 @@ async function updateCollections() {
 
 updateCollections();
 
+async function loadHeliosPreset() {
+  const saved = await figma.clientStorage.getAsync('heliosPreset');
+  if (saved) {
+    figma.ui.postMessage({ type: 'helios-preset-loaded', values: saved });
+  }
+}
+loadHeliosPreset();
+
 figma.ui.onmessage = async (msg) => {
+  if (msg.type === 'save-helios-preset') {
+    await figma.clientStorage.setAsync('heliosPreset', msg.values);
+    figma.ui.postMessage({ type: 'helios-preset-saved' });
+    return;
+  }
   if (msg.type === 'generate-spectrum') {
     try {
     const { collectionId, entries } = msg;
@@ -229,6 +260,7 @@ figma.ui.onmessage = async (msg) => {
     const inputOnly: boolean = msg.inputOnly ?? false;
     const inputMode: string = msg.inputMode ?? 'Light';
     const isLightInput = (inputMode === 'Light' || inputMode === 'IC - Light');
+    const heliosMode: boolean = msg.heliosMode ?? false;
 
     let collection: VariableCollection;
     const collections = await figma.variables.getLocalVariableCollectionsAsync();
@@ -300,6 +332,7 @@ figma.ui.onmessage = async (msg) => {
       if (!inputOnly || isLightInput) {
         const lightPositions = [0, 100, 200, 300, 400, 500];
         const light500Color = get500KeyColor(lightKeys);
+        const lightOpacityColor = heliosMode ? heliosAdjustOpacityColor(light500Color, false) : light500Color;
 
         for (const pos of lightPositions) {
           const posStr = pos.toString().padStart(3, '0');
@@ -307,13 +340,17 @@ figma.ui.onmessage = async (msg) => {
 
           const opaqueColor = getColorAtPosition(lightKeys, pos, 0, 500, true, sliderParams);
           createOrUpdateVariable(`${groupName}/Opaque/${posSuffix}`, { r: opaqueColor.r, g: opaqueColor.g, b: opaqueColor.b, a: 1 });
-          createOrUpdateVariable(`${groupName}/Opacity/${posSuffix}`, { r: light500Color.r, g: light500Color.g, b: light500Color.b, a: getAlphaForPosition(pos) });
+
+          const opacityRgb = pos === 500 ? light500Color : lightOpacityColor;
+          const alpha = heliosMode ? getHeliosAlphaForPosition(pos) : getAlphaForPosition(pos);
+          createOrUpdateVariable(`${groupName}/Opacity/${posSuffix}`, { r: opacityRgb.r, g: opacityRgb.g, b: opacityRgb.b, a: alpha });
         }
       }
 
       if (!inputOnly || !isLightInput) {
         const darkPositions = [500, 600, 700, 800, 900, 1000];
         const dark500Color = get500KeyColor(darkKeys);
+        const darkOpacityColor = heliosMode ? heliosAdjustOpacityColor(dark500Color, true) : dark500Color;
 
         for (const pos of darkPositions) {
           const posStr = pos.toString().padStart(3, '0');
@@ -321,7 +358,10 @@ figma.ui.onmessage = async (msg) => {
 
           const opaqueColor = getColorAtPosition(darkKeys, pos, 500, 1000, false, sliderParams);
           createOrUpdateVariable(`${groupName}/Opaque/${posSuffix}`, { r: opaqueColor.r, g: opaqueColor.g, b: opaqueColor.b, a: 1 });
-          createOrUpdateVariable(`${groupName}/Opacity/${posSuffix}`, { r: dark500Color.r, g: dark500Color.g, b: dark500Color.b, a: getAlphaForPosition(pos) });
+
+          const opacityRgb = pos === 500 ? dark500Color : darkOpacityColor;
+          const alpha = heliosMode ? getHeliosAlphaForPosition(pos) : getAlphaForPosition(pos);
+          createOrUpdateVariable(`${groupName}/Opacity/${posSuffix}`, { r: opacityRgb.r, g: opacityRgb.g, b: opacityRgb.b, a: alpha });
         }
       }
     }

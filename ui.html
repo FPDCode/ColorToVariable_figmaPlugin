@@ -455,6 +455,24 @@
     .btn-skip:hover {
       background: var(--color-btn-skip-hover);
     }
+    .btn-save-preset {
+      margin-top: 8px;
+      margin-bottom: 20px;
+      padding: 5px 10px;
+      font-size: 11px;
+      font-weight: 500;
+      border: 1px solid var(--color-border-light);
+      border-radius: 4px;
+      background: var(--color-input-bg);
+      color: var(--color-text);
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .btn-save-preset:hover {
+      background: var(--color-accent);
+      color: #fff;
+      border-color: var(--color-accent);
+    }
     .scan-stats {
       padding: 8px;
       background: var(--color-accent-bg);
@@ -634,7 +652,7 @@
       </label>
     </div>
 
-    <div id="spectrum-tint-shade-sliders" style="display:none">
+    <div id="spectrum-tint-shade-sliders">
       <div class="form-group">
         <label>Light Lightness (000–400)</label>
         <div class="slider-row">
@@ -664,6 +682,7 @@
           <input type="number" class="slider-input" id="shade-saturation-value" min="0" max="100" value="50">
         </div>
       </div>
+      <button class="btn-small btn-save-preset" id="save-helios-preset">Save as Helios Preset</button>
     </div>
 
     <hr class="slider-separator">
@@ -755,7 +774,7 @@
         </label>
       </div>
 
-      <div id="bulk-tint-shade-sliders" style="display:none">
+      <div id="bulk-tint-shade-sliders">
         <div class="form-group">
           <label>Light Lightness (000–400)</label>
           <div class="slider-row">
@@ -785,6 +804,7 @@
             <input type="number" class="slider-input" id="bulk-shade-saturation-value" min="0" max="100" value="50">
           </div>
         </div>
+        <button class="btn-small btn-save-preset" id="bulk-save-helios-preset">Save as Helios Preset</button>
       </div>
     </div>
 
@@ -1000,40 +1020,50 @@
 
     // Helios Preset
     const heliosPresetCheckbox = document.getElementById('helios-preset');
-    const spectrumTintShadeSliders = document.getElementById('spectrum-tint-shade-sliders');
-    const heliosValues = { tintLightness: 4, tintSaturation: 51, shadeLightness: 7, shadeSaturation: 28 };
-    let savedSliderValues = null;
+    const saveHeliosBtn = document.getElementById('save-helios-preset');
+    let heliosValues = { tintLightness: 4, tintSaturation: 51, shadeLightness: 4, shadeSaturation: 21 };
+
+    function applyHeliosToSliders() {
+      tintLightnessSlider.value = heliosValues.tintLightness;
+      tintLightnessValue.value = heliosValues.tintLightness;
+      tintSaturationSlider.value = heliosValues.tintSaturation;
+      tintSaturationValue.value = heliosValues.tintSaturation;
+      shadeLightnessSlider.value = heliosValues.shadeLightness;
+      shadeLightnessValue.value = heliosValues.shadeLightness;
+      shadeSaturationSlider.value = heliosValues.shadeSaturation;
+      shadeSaturationValue.value = heliosValues.shadeSaturation;
+    }
+
+    function checkHeliosMatch() {
+      const matches =
+        parseInt(tintLightnessSlider.value) === heliosValues.tintLightness &&
+        parseInt(tintSaturationSlider.value) === heliosValues.tintSaturation &&
+        parseInt(shadeLightnessSlider.value) === heliosValues.shadeLightness &&
+        parseInt(shadeSaturationSlider.value) === heliosValues.shadeSaturation;
+      heliosPresetCheckbox.checked = matches;
+    }
 
     heliosPresetCheckbox.onchange = () => {
       if (heliosPresetCheckbox.checked) {
-        savedSliderValues = {
-          tintLightness: tintLightnessSlider.value,
-          tintSaturation: tintSaturationSlider.value,
-          shadeLightness: shadeLightnessSlider.value,
-          shadeSaturation: shadeSaturationSlider.value
-        };
-        tintLightnessSlider.value = heliosValues.tintLightness;
-        tintLightnessValue.value = heliosValues.tintLightness;
-        tintSaturationSlider.value = heliosValues.tintSaturation;
-        tintSaturationValue.value = heliosValues.tintSaturation;
-        shadeLightnessSlider.value = heliosValues.shadeLightness;
-        shadeLightnessValue.value = heliosValues.shadeLightness;
-        shadeSaturationSlider.value = heliosValues.shadeSaturation;
-        shadeSaturationValue.value = heliosValues.shadeSaturation;
-        spectrumTintShadeSliders.style.display = 'none';
-      } else {
-        if (savedSliderValues) {
-          tintLightnessSlider.value = savedSliderValues.tintLightness;
-          tintLightnessValue.value = savedSliderValues.tintLightness;
-          tintSaturationSlider.value = savedSliderValues.tintSaturation;
-          tintSaturationValue.value = savedSliderValues.tintSaturation;
-          shadeLightnessSlider.value = savedSliderValues.shadeLightness;
-          shadeLightnessValue.value = savedSliderValues.shadeLightness;
-          shadeSaturationSlider.value = savedSliderValues.shadeSaturation;
-          shadeSaturationValue.value = savedSliderValues.shadeSaturation;
-        }
-        spectrumTintShadeSliders.style.display = 'block';
+        applyHeliosToSliders();
       }
+    };
+
+    [tintLightnessSlider, tintLightnessValue, tintSaturationSlider, tintSaturationValue,
+     shadeLightnessSlider, shadeLightnessValue, shadeSaturationSlider, shadeSaturationValue
+    ].forEach(el => el.addEventListener('input', checkHeliosMatch));
+
+    saveHeliosBtn.onclick = () => {
+      heliosValues = {
+        tintLightness: parseInt(tintLightnessSlider.value),
+        tintSaturation: parseInt(tintSaturationSlider.value),
+        shadeLightness: parseInt(shadeLightnessSlider.value),
+        shadeSaturation: parseInt(shadeSaturationSlider.value)
+      };
+      heliosPresetCheckbox.checked = true;
+      parent.postMessage({
+        pluginMessage: { type: 'save-helios-preset', values: heliosValues }
+      }, '*');
     };
 
     const genCollectionSelect = document.getElementById('gen-collection');
@@ -1099,39 +1129,51 @@
 
     // Bulk Helios Preset
     const bulkHeliosCheckbox = document.getElementById('bulk-helios-preset');
-    const bulkTintShadeSliders = document.getElementById('bulk-tint-shade-sliders');
-    let savedBulkSliderValues = null;
+    const bulkSaveHeliosBtn = document.getElementById('bulk-save-helios-preset');
+
+    function applyHeliosToBulkSliders() {
+      bulkTintLightnessSlider.value = heliosValues.tintLightness;
+      bulkTintLightnessValue.value = heliosValues.tintLightness;
+      bulkTintSaturationSlider.value = heliosValues.tintSaturation;
+      bulkTintSaturationValue.value = heliosValues.tintSaturation;
+      bulkShadeLightnessSlider.value = heliosValues.shadeLightness;
+      bulkShadeLightnessValue.value = heliosValues.shadeLightness;
+      bulkShadeSaturationSlider.value = heliosValues.shadeSaturation;
+      bulkShadeSaturationValue.value = heliosValues.shadeSaturation;
+    }
+
+    function checkBulkHeliosMatch() {
+      const matches =
+        parseInt(bulkTintLightnessSlider.value) === heliosValues.tintLightness &&
+        parseInt(bulkTintSaturationSlider.value) === heliosValues.tintSaturation &&
+        parseInt(bulkShadeLightnessSlider.value) === heliosValues.shadeLightness &&
+        parseInt(bulkShadeSaturationSlider.value) === heliosValues.shadeSaturation;
+      bulkHeliosCheckbox.checked = matches;
+    }
 
     bulkHeliosCheckbox.onchange = () => {
       if (bulkHeliosCheckbox.checked) {
-        savedBulkSliderValues = {
-          tintLightness: bulkTintLightnessSlider.value,
-          tintSaturation: bulkTintSaturationSlider.value,
-          shadeLightness: bulkShadeLightnessSlider.value,
-          shadeSaturation: bulkShadeSaturationSlider.value
-        };
-        bulkTintLightnessSlider.value = heliosValues.tintLightness;
-        bulkTintLightnessValue.value = heliosValues.tintLightness;
-        bulkTintSaturationSlider.value = heliosValues.tintSaturation;
-        bulkTintSaturationValue.value = heliosValues.tintSaturation;
-        bulkShadeLightnessSlider.value = heliosValues.shadeLightness;
-        bulkShadeLightnessValue.value = heliosValues.shadeLightness;
-        bulkShadeSaturationSlider.value = heliosValues.shadeSaturation;
-        bulkShadeSaturationValue.value = heliosValues.shadeSaturation;
-        bulkTintShadeSliders.style.display = 'none';
-      } else {
-        if (savedBulkSliderValues) {
-          bulkTintLightnessSlider.value = savedBulkSliderValues.tintLightness;
-          bulkTintLightnessValue.value = savedBulkSliderValues.tintLightness;
-          bulkTintSaturationSlider.value = savedBulkSliderValues.tintSaturation;
-          bulkTintSaturationValue.value = savedBulkSliderValues.tintSaturation;
-          bulkShadeLightnessSlider.value = savedBulkSliderValues.shadeLightness;
-          bulkShadeLightnessValue.value = savedBulkSliderValues.shadeLightness;
-          bulkShadeSaturationSlider.value = savedBulkSliderValues.shadeSaturation;
-          bulkShadeSaturationValue.value = savedBulkSliderValues.shadeSaturation;
-        }
-        bulkTintShadeSliders.style.display = 'block';
+        applyHeliosToBulkSliders();
       }
+    };
+
+    [bulkTintLightnessSlider, bulkTintLightnessValue, bulkTintSaturationSlider, bulkTintSaturationValue,
+     bulkShadeLightnessSlider, bulkShadeLightnessValue, bulkShadeSaturationSlider, bulkShadeSaturationValue
+    ].forEach(el => el.addEventListener('input', checkBulkHeliosMatch));
+
+    bulkSaveHeliosBtn.onclick = () => {
+      heliosValues = {
+        tintLightness: parseInt(bulkTintLightnessSlider.value),
+        tintSaturation: parseInt(bulkTintSaturationSlider.value),
+        shadeLightness: parseInt(bulkShadeLightnessSlider.value),
+        shadeSaturation: parseInt(bulkShadeSaturationSlider.value)
+      };
+      bulkHeliosCheckbox.checked = true;
+      applyHeliosToSliders();
+      heliosPresetCheckbox.checked = true;
+      parent.postMessage({
+        pluginMessage: { type: 'save-helios-preset', values: heliosValues }
+      }, '*');
     };
 
     function updateBulkSliderLabels() {
@@ -1627,6 +1669,21 @@
     window.onmessage = (event) => {
       const msg = event.data.pluginMessage;
 
+      if (msg.type === 'helios-preset-loaded') {
+        if (msg.values) {
+          heliosValues = msg.values;
+          applyHeliosToSliders();
+          applyHeliosToBulkSliders();
+          heliosPresetCheckbox.checked = true;
+          bulkHeliosCheckbox.checked = true;
+        }
+        return;
+      }
+
+      if (msg.type === 'helios-preset-saved') {
+        return;
+      }
+
       if (msg.type === 'collections') {
         // Save current selections
         const currentSpectrumValue = spectrumCollectionSelect.value;
@@ -1756,7 +1813,8 @@
               shadeLightness: parseInt(shadeLightnessSlider.value),
               shadeSaturation: parseInt(shadeSaturationSlider.value),
               inputOnly: document.getElementById('input-only').checked,
-              inputMode: spectrumSelectedMode
+              inputMode: spectrumSelectedMode,
+              heliosMode: heliosPresetCheckbox.checked
             }
           }, '*');
           return;
