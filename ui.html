@@ -695,6 +695,22 @@
       </label>
     </div>
 
+    <div class="form-group toggle-row">
+      <label for="opacity-only">Update Opacity only</label>
+      <label class="toggle-switch">
+        <input type="checkbox" id="opacity-only">
+        <span class="toggle-slider"></span>
+      </label>
+    </div>
+
+    <div class="form-group toggle-row">
+      <label for="opaque-only">Update Opaque only</label>
+      <label class="toggle-switch">
+        <input type="checkbox" id="opaque-only">
+        <span class="toggle-slider"></span>
+      </label>
+    </div>
+
     </div>
     <div class="tab-footer">
       <button id="spectrum-generate" class="primary">Generate Spectrum</button>
@@ -966,6 +982,16 @@
     const shadeSaturationSlider = document.getElementById('shade-saturation');
     const shadeSaturationValue = document.getElementById('shade-saturation-value');
     const inputOnlyToggle = document.getElementById('input-only');
+    const opacityOnlyToggle = document.getElementById('opacity-only');
+    const opaqueOnlyToggle = document.getElementById('opaque-only');
+
+    opacityOnlyToggle.onchange = () => {
+      if (opacityOnlyToggle.checked) opaqueOnlyToggle.checked = false;
+    };
+    opaqueOnlyToggle.onchange = () => {
+      if (opaqueOnlyToggle.checked) opacityOnlyToggle.checked = false;
+    };
+
     let spectrumSelectedMode = 'Light';
     let pendingSpectrumRequest = false;
 
@@ -1728,7 +1754,12 @@
         });
         
         // Restore selections
-        if (currentSpectrumValue) spectrumCollectionSelect.value = currentSpectrumValue;
+        if (currentSpectrumValue) {
+          spectrumCollectionSelect.value = currentSpectrumValue;
+        } else {
+          const spectrumMatch = msg.collections.find(c => c.name === 'Spectrum');
+          if (spectrumMatch) spectrumCollectionSelect.value = spectrumMatch.id;
+        }
         if (currentGenValue) {
           genCollectionSelect.value = currentGenValue;
           generateButton.disabled = false;
@@ -1813,8 +1844,9 @@
               shadeLightness: parseInt(shadeLightnessSlider.value),
               shadeSaturation: parseInt(shadeSaturationSlider.value),
               inputOnly: document.getElementById('input-only').checked,
-              inputMode: spectrumSelectedMode,
-              heliosMode: heliosPresetCheckbox.checked
+              opacityOnly: opacityOnlyToggle.checked,
+              opaqueOnly: opaqueOnlyToggle.checked,
+              inputMode: spectrumSelectedMode
             }
           }, '*');
           return;
